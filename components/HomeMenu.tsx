@@ -4,7 +4,8 @@ import { UserProfile } from '../types';
 import { PlusCircle, ShoppingBag, DollarSign, ShieldAlert, ArrowRight, Star } from 'lucide-react';
 
 interface Props {
-  onNavigate: (flow: 'request' | 'sellout' | 'reimbursement' | 'admin' | 'customization') => void;
+  user: UserProfile | null;
+  onNavigate: (flow: 'home' | 'request' | 'sellout' | 'reimbursement' | 'admin' | 'login' | 'customization') => void;
 }
 
 export const HomeMenu: React.FC<Props> = ({ user, onNavigate }) => {

@@ -20,7 +20,8 @@ const CUSTOMIZATION_SPACES = [
 ];
 
 const BRAND_CATEGORIES = [
-  "Marca Junco Festas",
+  "Marca Junco - Festas",
+  "Marca Junco - Doces",
   "Marca Fã",
   "Marca Happy Life"
 ];

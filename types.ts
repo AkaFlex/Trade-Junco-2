@@ -113,6 +113,7 @@ export const PRODUCTS_LIST = [
 export const ADMIN_EMAILS = [
   'mateus.silva@junco.com.br',
   'cissia.sousa@junco.com.br'
+  'maria.santana@junco.com.br'
 ];
 
 export interface TradeShowcaseItem {

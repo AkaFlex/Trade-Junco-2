@@ -578,7 +578,7 @@ export const AdminPanel: React.FC = () => {
       )}
 
       {/* ---- TABLE VIEWS ---- */}
-      {!loading && view !== 'dashboard' && view !== 'budgets' && (
+      {!loading && view !== 'dashboard' && view !== 'budgets' && view !== 'products' && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-in fade-in">
           <div className="p-4 md:p-6 border-b border-gray-100 bg-gray-50/50 space-y-3">
             <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">

@@ -32,7 +32,14 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
-    
+
+    // --- PRODUCTS COLLECTION (Sell-Out checklist) ---
+    match /products/{productId} {
+      // Public read so the no-login Sell-Out form can fetch the live list
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // --- USERS COLLECTION ---
     match /users/{userId} {
       allow read, write: if isAdmin();

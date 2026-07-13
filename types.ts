@@ -97,6 +97,7 @@ export interface RegionalBudget {
   limit: number;
 }
 
+// Kept as seed data for the one-time import into the Firestore `products` collection.
 export const PRODUCTS_LIST = [
   "Bala de Coco - 400g",
   "Bala de Coco - 700g",
@@ -109,6 +110,14 @@ export const PRODUCTS_LIST = [
   "Doce 1,1Kg",
   "Bisnaga 1,1Kg"
 ];
+
+export interface SellOutProduct {
+  id: string;
+  name: string;
+  order: number;
+  active: boolean;
+  createdAt: number;
+}
 
 export const ADMIN_EMAILS = [
   'mateus.silva@junco.com.br',

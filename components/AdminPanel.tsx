@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { TradeRequest, REGIONS, RegionalBudget } from '../types';
+import { TradeRequest, REGIONS, RegionalBudget, SellOutProduct, PRODUCTS_LIST } from '../types';
 import { getAllRequests, updateRequestStatus, saveBudget, checkBudgetAvailability, getAllBudgets, checkAndExpireRequests, getBudgetsForMonth } from '../services/tradeService';
+import { getProducts, addProduct, updateProduct, deleteProduct } from '../services/productsService';
 import { Check, X, Ban, LayoutDashboard, Wallet, ListChecks, AlertTriangle, User, TrendingUp, Loader2, Eye, FileText, Camera, DollarSign, Archive, Clock, PlayCircle, CheckCircle, XCircle, ArchiveX, Shield, ChevronLeft, ChevronRight, Pencil, FileSpreadsheet, ShoppingBag, Search } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -110,7 +111,7 @@ export const AdminPanel: React.FC = () => {
   const toast = useToast();
 
   const [requests, setRequests] = useState<TradeRequest[]>([]);
-  const [view, setView] = useState<'dashboard' | 'approvals' | 'execution' | 'history' | 'finance' | 'budgets' | 'blocked' | 'expired'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'approvals' | 'execution' | 'history' | 'finance' | 'budgets' | 'products' | 'blocked' | 'expired'>('dashboard');
   const [loading, setLoading] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<TradeRequest | null>(null);
@@ -138,6 +139,12 @@ export const AdminPanel: React.FC = () => {
   const currentMonthStr = new Date().toISOString().slice(0, 7);
   const [budgetForm, setBudgetForm] = useState({ region: REGIONS[0], month: currentMonthStr, limit: 5000 });
   const [editingBudgetRegion, setEditingBudgetRegion] = useState<string | null>(null);
+
+  // Products (Sell-Out checklist) States
+  const [products, setProducts] = useState<SellOutProduct[]>([]);
+  const [newProductName, setNewProductName] = useState('');
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [editProductName, setEditProductName] = useState('');
 
   // ------------------------------------------------------------------
   // Data Loading
@@ -192,6 +199,19 @@ export const AdminPanel: React.FC = () => {
   useEffect(() => {
     if (view === 'budgets') loadBudgets(budgetForm.month);
   }, [budgetForm.month, view, loadBudgets]);
+
+  const loadProducts = useCallback(async () => {
+    try {
+      setProducts(await getProducts());
+    } catch (e) {
+      console.error("Erro ao carregar produtos", e);
+      toast.error("Erro ao carregar produtos.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view === 'products') loadProducts();
+  }, [view, loadProducts]);
 
   // ------------------------------------------------------------------
   // Inline Value Editing
@@ -302,6 +322,63 @@ export const AdminPanel: React.FC = () => {
       toast.error("Erro ao salvar orçamento.");
     }
   }, [budgetForm.month, budgetForm.limit, loadBudgets]);
+
+  const handleAddProduct = useCallback(async () => {
+    if (!newProductName.trim()) return toast.warning("Digite o nome do produto.");
+    try {
+      const nextOrder = products.length > 0 ? Math.max(...products.map(p => p.order)) + 1 : 0;
+      await addProduct(newProductName, nextOrder);
+      setNewProductName('');
+      await loadProducts();
+      toast.success("Produto adicionado!");
+    } catch (e) {
+      toast.error("Erro ao adicionar produto.");
+    }
+  }, [newProductName, products, loadProducts]);
+
+  const handleSaveProductEdit = useCallback(async (id: string) => {
+    if (!editProductName.trim()) return toast.warning("Nome não pode ser vazio.");
+    try {
+      await updateProduct(id, { name: editProductName.trim() });
+      setEditingProductId(null);
+      await loadProducts();
+      toast.success("Produto atualizado!");
+    } catch (e) {
+      toast.error("Erro ao atualizar produto.");
+    }
+  }, [editProductName, loadProducts]);
+
+  const handleToggleProductActive = useCallback(async (p: SellOutProduct) => {
+    try {
+      await updateProduct(p.id, { active: !p.active });
+      await loadProducts();
+    } catch (e) {
+      toast.error("Erro ao atualizar status do produto.");
+    }
+  }, [loadProducts]);
+
+  const handleDeleteProduct = useCallback(async (id: string) => {
+    if (!window.confirm("Excluir este produto permanentemente?")) return;
+    try {
+      await deleteProduct(id);
+      await loadProducts();
+      toast.success("Produto excluído.");
+    } catch (e) {
+      toast.error("Erro ao excluir produto.");
+    }
+  }, [loadProducts]);
+
+  const handleImportDefaultProducts = useCallback(async () => {
+    try {
+      for (let i = 0; i < PRODUCTS_LIST.length; i++) {
+        await addProduct(PRODUCTS_LIST[i], i);
+      }
+      await loadProducts();
+      toast.success("Lista padrão importada!");
+    } catch (e) {
+      toast.error("Erro ao importar lista padrão.");
+    }
+  }, [loadProducts]);
 
   const saveAdminSupplier = async (req: TradeRequest) => {
     try {
@@ -424,6 +501,7 @@ export const AdminPanel: React.FC = () => {
         <NavButton active={view === 'finance'}    onClick={() => setView('finance')}    icon={<Wallet size={18}/>}          label="Financeiro"   count={financeRequests.length} />
         <NavButton active={view === 'history'}    onClick={() => setView('history')}    icon={<Archive size={18}/>}         label="Histórico" />
         <NavButton active={view === 'budgets'}    onClick={() => setView('budgets')}    icon={<DollarSign size={18}/>}      label="Orçamentos" />
+        <NavButton active={view === 'products'}   onClick={() => setView('products')}   icon={<ShoppingBag size={18}/>}     label="Produtos" />
         <NavButton active={view === 'blocked'}    onClick={() => setView('blocked')}    icon={<Ban size={18}/>}             label="Bloqueios"    count={blockedRequests.length} />
         <NavButton active={view === 'expired'}    onClick={() => setView('expired')}    icon={<ArchiveX size={18}/>}        label="Vencidos"     count={expiredRequests.length} />
       </div>
@@ -731,6 +809,77 @@ export const AdminPanel: React.FC = () => {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* ---- PRODUCTS ---- */}
+      {!loading && view === 'products' && (
+        <div className="space-y-6 animate-in fade-in">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-4">
+              <ShoppingBag className="text-brand-purple" /> Produtos do Sell-Out
+            </h2>
+            <div className="flex gap-2">
+              <input
+                className="flex-1 border p-3 rounded-lg focus:ring-2 focus:ring-brand-purple outline-none"
+                placeholder="Nome do novo produto (ex: Bala de Coco - 400g)"
+                value={newProductName}
+                onChange={e => setNewProductName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAddProduct()}
+              />
+              <button onClick={handleAddProduct} className="bg-brand-purple text-white px-6 py-3 rounded-lg font-bold hover:opacity-90 transition">
+                Adicionar
+              </button>
+            </div>
+          </div>
+
+          {products.length === 0 && (
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-dashed border-gray-300 text-center">
+              <p className="text-gray-400 mb-4">Nenhum produto cadastrado ainda.</p>
+              <button
+                onClick={handleImportDefaultProducts}
+                className="bg-gray-100 text-gray-700 px-6 py-3 rounded-lg font-bold hover:bg-gray-200 transition"
+              >
+                Importar lista padrão (10 produtos)
+              </button>
+            </div>
+          )}
+
+          {products.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 divide-y divide-gray-50">
+              {products.map(p => (
+                <div key={p.id} className="flex items-center justify-between p-4 gap-3">
+                  {editingProductId === p.id ? (
+                    <>
+                      <input
+                        className="flex-1 border rounded p-2 text-sm"
+                        value={editProductName}
+                        onChange={e => setEditProductName(e.target.value)}
+                        autoFocus
+                      />
+                      <button onClick={() => handleSaveProductEdit(p.id)} className="text-green-600 bg-green-50 p-2 rounded"><Check size={16}/></button>
+                      <button onClick={() => setEditingProductId(null)} className="text-gray-400 hover:text-gray-600 p-2"><X size={16}/></button>
+                    </>
+                  ) : (
+                    <>
+                      <span className={`flex-1 font-medium ${p.active === false ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{p.name}</span>
+                      <button
+                        onClick={() => handleToggleProductActive(p)}
+                        className={`text-xs px-2 py-1 rounded-full font-bold ${p.active === false ? 'bg-gray-100 text-gray-500' : 'bg-green-50 text-green-700'}`}
+                      >
+                        {p.active === false ? 'Inativo' : 'Ativo'}
+                      </button>
+                      <button
+                        onClick={() => { setEditingProductId(p.id); setEditProductName(p.name); }}
+                        className="text-gray-300 hover:text-brand-purple p-2"
+                      ><Pencil size={16}/></button>
+                      <button onClick={() => handleDeleteProduct(p.id)} className="text-gray-300 hover:text-red-500 p-2"><X size={16}/></button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

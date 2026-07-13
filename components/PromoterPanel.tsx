@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { getRequestByTradeCode } from '../services/tradeService';
-import { TradeRequest, PRODUCTS_LIST, SalesReport, ProductCount } from '../types';
+import { getProducts } from '../services/productsService';
+import { TradeRequest, SalesReport, ProductCount } from '../types';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { Search, Store, Calendar, Save, CheckCircle, ArrowLeft, Lock, ListChecks, Loader2 } from 'lucide-react';
@@ -19,13 +20,30 @@ export const PromoterPanel: React.FC = () => {
   // Form State
   const [storeName, setStoreName] = useState('');
   const [sellerName, setSellerName] = useState('');
-  const [counts, setCounts] = useState<ProductCount[]>(PRODUCTS_LIST.map(p => ({ name: p, qty: 0 })));
+  const [counts, setCounts] = useState<ProductCount[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   // Persist trade code in localStorage
   useEffect(() => {
     const saved = localStorage.getItem('junco_promoter_tradecode');
     if (saved) setTradeCode(saved);
+  }, []);
+
+  // Load the live product checklist from Firestore
+  useEffect(() => {
+    (async () => {
+      try {
+        const items = await getProducts();
+        const active = items.filter(p => p.active !== false);
+        setCounts(active.map(p => ({ name: p.name, qty: 0 })));
+      } catch (e) {
+        console.error(e);
+        toast.error("Erro ao carregar lista de produtos.", "Tente recarregar a página.");
+      } finally {
+        setProductsLoading(false);
+      }
+    })();
   }, []);
 
   const getReportStatus = (req: TradeRequest) => {
@@ -73,6 +91,7 @@ export const PromoterPanel: React.FC = () => {
     if (!storeName.trim()) return toast.warning("Informe o nome da loja.");
     if (!sellerName.trim()) return toast.warning("Informe o nome do vendedor.");
     if (reportStatus.isComplete) return toast.info("Todos os relatórios já foram enviados.");
+    if (counts.length === 0) return toast.warning("Nenhum produto cadastrado.", "Contate o administrador.");
 
     setSubmitting(true);
     const newReport: SalesReport = {
@@ -97,7 +116,7 @@ export const PromoterPanel: React.FC = () => {
       // Reset form
       setStoreName('');
       setSellerName('');
-      setCounts(PRODUCTS_LIST.map(p => ({ name: p, qty: 0 })));
+      setCounts(prev => prev.map(c => ({ ...c, qty: 0 })));
 
       toast.success(
         `Relatório ${reportStatus.current + 1}/${reportStatus.total} enviado!`,
@@ -207,24 +226,34 @@ export const PromoterPanel: React.FC = () => {
 
               <div className="mb-8 overflow-hidden">
                 <h4 className="text-sm font-bold text-gray-600 mb-3 uppercase border-b pb-2">Vendas do Dia (Unidades)</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto pr-2">
-                  {counts.map((item, idx) => (
-                    <div key={item.name} className="flex justify-between items-center bg-gray-50 p-2 md:p-3 rounded-lg border border-gray-100 hover:border-pink-200 transition">
-                      <span className="text-xs md:text-sm font-bold text-gray-700 leading-tight pr-2">{item.name}</span>
-                      <div className="flex items-center gap-2 md:gap-3 shrink-0">
-                        <button
-                          onClick={() => handleQtyChange(idx, -1)}
-                          className="w-8 h-8 bg-white border border-gray-300 rounded-full text-gray-600 hover:bg-gray-100 font-bold shadow-sm"
-                        >-</button>
-                        <span className="w-6 text-center text-base md:text-lg font-bold text-pink-700">{item.qty}</span>
-                        <button
-                          onClick={() => handleQtyChange(idx, 1)}
-                          className="w-8 h-8 bg-pink-600 text-white rounded-full hover:bg-pink-700 font-bold shadow-md"
-                        >+</button>
+                {productsLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="animate-spin text-pink-500" size={28}/>
+                  </div>
+                ) : counts.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400 text-sm">
+                    Nenhum produto cadastrado. Contate o administrador.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto pr-2">
+                    {counts.map((item, idx) => (
+                      <div key={item.name} className="flex justify-between items-center bg-gray-50 p-2 md:p-3 rounded-lg border border-gray-100 hover:border-pink-200 transition">
+                        <span className="text-xs md:text-sm font-bold text-gray-700 leading-tight pr-2">{item.name}</span>
+                        <div className="flex items-center gap-2 md:gap-3 shrink-0">
+                          <button
+                            onClick={() => handleQtyChange(idx, -1)}
+                            className="w-8 h-8 bg-white border border-gray-300 rounded-full text-gray-600 hover:bg-gray-100 font-bold shadow-sm"
+                          >-</button>
+                          <span className="w-6 text-center text-base md:text-lg font-bold text-pink-700">{item.qty}</span>
+                          <button
+                            onClick={() => handleQtyChange(idx, 1)}
+                            className="w-8 h-8 bg-pink-600 text-white rounded-full hover:bg-pink-700 font-bold shadow-md"
+                          >+</button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <button

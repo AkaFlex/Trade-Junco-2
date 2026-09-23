@@ -6,6 +6,7 @@ import { RCAPanel } from './components/RCAPanel';
 import { PromoterPanel } from './components/PromoterPanel';
 import { RequestWizard } from './components/RequestWizard';
 import { CustomizationWizard } from './components/CustomizationWizard';
+import { EventsWizard } from './components/EventsWizard';
 import { HomeMenu } from './components/HomeMenu';
 import { UserProfile, ADMIN_EMAILS } from './types';
 import { LogOut, Home, Shield } from 'lucide-react';
@@ -14,7 +15,7 @@ import { ToastProvider, useToast } from './components/shared/Toast';
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [flow, setFlow] = useState<'home' | 'request' | 'sellout' | 'reimbursement' | 'admin' | 'login' | 'customization'>('home');
+  const [flow, setFlow] = useState<'home' | 'request' | 'sellout' | 'reimbursement' | 'admin' | 'login' | 'customization' | 'events'>('home');
 
   // Login Form State
   const [email, setEmail] = useState('');
@@ -75,6 +76,7 @@ const App: React.FC = () => {
     login: { bg: 'bg-gray-800', text: 'text-gray-800' },
     request: { bg: 'bg-brand-red', text: 'text-brand-red' },
     customization: { bg: 'bg-brand-purple', text: 'text-brand-purple' },
+    events: { bg: 'bg-amber-600', text: 'text-amber-600' },
     sellout: { bg: 'bg-pink-600', text: 'text-pink-600' },
     reimbursement: { bg: 'bg-brand-purple', text: 'text-brand-purple' },
     home: { bg: 'bg-brand-red', text: 'text-brand-red' }
@@ -102,6 +104,7 @@ const App: React.FC = () => {
                    flow === 'login' ? 'Acesso Restrito' :
                    flow === 'request' ? 'Nova Solicitação' : 
                    flow === 'customization' ? 'Solicitar Personalização' :
+                   flow === 'events' ? 'Solicitação de Eventos' :
                    flow === 'sellout' ? 'Sell Out (Degustadora)' :
                    flow === 'reimbursement' ? 'Acompanhar Solicitações' : 'Menu Principal'}
                 </p>
@@ -147,6 +150,7 @@ const App: React.FC = () => {
           {flow === 'home' && <HomeMenu user={user} onNavigate={setFlow} />}
           {flow === 'request' && <RequestWizard user={user} onCancel={() => setFlow('home')} onSuccess={() => setFlow('home')} />}
           {flow === 'customization' && <CustomizationWizard user={user} onCancel={() => setFlow('home')} onSuccess={() => setFlow('home')} />}
+          {flow === 'events' && <EventsWizard user={user} onCancel={() => setFlow('home')} onSuccess={() => setFlow('home')} />}
           {flow === 'sellout' && <PromoterPanel />}
           {flow === 'reimbursement' && <RCAPanel user={user} />}
           {flow === 'admin' && user?.role === 'admin' && <AdminPanel />}

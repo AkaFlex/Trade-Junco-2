@@ -43,7 +43,7 @@ export interface SalesReport {
 
 export interface TradeRequest {
   id: string;
-  requestType?: 'degustacao' | 'personalizacao'; // Novo tipo de Ação
+  requestType?: 'degustacao' | 'personalizacao' | 'evento' | 'acao_social'; // Novo tipo de Ação
   tradeCode?: string; // Unique ID (Ex: TJ-A1B2C3)
   uid: string;
   createdAt: number;
@@ -88,6 +88,21 @@ export interface TradeRequest {
   spacePhotoUrl?: string;
   spacePhotoUrls?: string[];
   adminAssignedSupplier?: string;
+
+  // Events Module fields ('evento' | 'acao_social')
+  institutionName?: string;         // Eventos: Nome da Instituição/Empresa solicitante
+  eventCategory?: 'esportivo' | 'comercial'; // Eventos: Tipo
+  eventTime?: string;               // ambos: Horário do evento
+  eventLocation?: string;           // ambos: Local do evento
+  expectedAudience?: string;        // Eventos: Público esperado
+  eventPurpose?: string;            // ambos: Finalidade do Evento
+  juncoParticipation?: string;      // Eventos: Como seria a participação da Junco
+  mediaKitUrl?: string;             // Eventos: anexo obrigatório (Mídia Kit)
+  seasonalDate?: 'sim' | 'nao';     // Ação Social: Data Sazonal?
+  seasonalDateDescription?: string; // Ação Social: qual data sazonal (se seasonalDate === 'sim')
+  itemQuantity?: number;            // Ação Social: Quantidade de itens
+  desiredProduct?: string;          // Ação Social: Produto desejado
+  actionOfficeUrl?: string;         // Ação Social: anexo obrigatório (Ofício da ação)
 }
 
 export interface RegionalBudget {

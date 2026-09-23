@@ -7,14 +7,16 @@ type Variant = 'admin' | 'rca';
 interface Props {
   status: string;
   variant?: Variant;
+  overdue?: boolean;
 }
 
 /**
  * Shared StatusBadge component.
  * - variant="admin" (default): smaller, table-friendly style
  * - variant="rca": larger, card-friendly style with stronger paid badge
+ * - overdue: appends a extra "Atrasado" chip next to the status badge
  */
-export const StatusBadge: React.FC<Props> = ({ status, variant = 'admin' }) => {
+export const StatusBadge: React.FC<Props> = ({ status, variant = 'admin', overdue = false }) => {
   const adminStyles: Record<string, string> = {
     pending:       'bg-yellow-50 text-yellow-700 border-yellow-200 ring-1 ring-yellow-100',
     approved:      'bg-blue-50 text-blue-700 border-blue-200 ring-1 ring-blue-100',
@@ -55,8 +57,15 @@ export const StatusBadge: React.FC<Props> = ({ status, variant = 'admin' }) => {
     : 'inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold border whitespace-nowrap';
 
   return (
-    <span className={`${baseClass} ${styles[status] || 'bg-gray-50 text-gray-500 border-gray-200'}`}>
-      {labels[status] ?? status}
+    <span className="inline-flex items-center gap-1.5">
+      <span className={`${baseClass} ${styles[status] || 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+        {labels[status] ?? status}
+      </span>
+      {overdue && (
+        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-bold bg-red-600 text-white whitespace-nowrap">
+          ⏰ Atrasado
+        </span>
+      )}
     </span>
   );
 };

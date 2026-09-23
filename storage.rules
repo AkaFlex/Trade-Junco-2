@@ -1,0 +1,17 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // --- EVENT ATTACHMENTS (Mídia Kit / Ofício da Ação) ---
+    // Public write, no login required (matches the public "requests" Firestore collection),
+    // scoped to this one path and capped at 20MB per file.
+    match /event-attachments/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.resource.size < 20 * 1024 * 1024;
+    }
+
+    // Deny everything else by default.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

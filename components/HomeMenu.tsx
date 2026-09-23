@@ -1,12 +1,12 @@
 import React from 'react';
 import { UserProfile } from '../types';
-import { PlusCircle, ShoppingBag, DollarSign, ShieldAlert, ArrowRight, Star } from 'lucide-react';
+import { PlusCircle, ShoppingBag, DollarSign, ShieldAlert, ArrowRight, Star, PartyPopper } from 'lucide-react';
 import { TradeShowcase } from './TradeShowcase';
 
 
 interface Props {
   user: UserProfile | null;
-  onNavigate: (flow: 'home' | 'request' | 'sellout' | 'reimbursement' | 'admin' | 'login' | 'customization') => void;
+  onNavigate: (flow: 'home' | 'request' | 'sellout' | 'reimbursement' | 'admin' | 'login' | 'customization' | 'events') => void;
 }
 
 export const HomeMenu: React.FC<Props> = ({ user, onNavigate }) => {
@@ -19,7 +19,7 @@ export const HomeMenu: React.FC<Props> = ({ user, onNavigate }) => {
         <p className="text-gray-500 text-lg">O que você deseja fazer hoje?</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 mt-12">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 mt-12">
         {/* OPÇÃO 1 */}
         <button
           onClick={() => onNavigate('request')}
@@ -89,6 +89,24 @@ export const HomeMenu: React.FC<Props> = ({ user, onNavigate }) => {
           </p>
           <span className="text-brand-purple font-bold text-sm flex items-center gap-2 relative z-10">
             PERSONALIZAR <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+          </span>
+        </button>
+
+        {/* OPÇÃO 5 */}
+        <button
+          onClick={() => onNavigate('events')}
+          className="bg-white border-2 border-transparent hover:border-amber-500 p-8 rounded-3xl shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col items-center text-center transform hover:-translate-y-2 relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150"></div>
+          <div className="bg-amber-50 text-amber-600 p-5 rounded-2xl mb-6 group-hover:bg-amber-500 group-hover:text-white transition-colors relative z-10">
+            <PartyPopper size={40} />
+          </div>
+          <h2 className="text-xl font-bold text-gray-800 mb-3 relative z-10">Solicitação de Eventos</h2>
+          <p className="text-gray-500 text-sm mb-6 relative z-10 flex-1">
+            Eventos esportivos/comerciais ou ações sociais com participação da Junco.
+          </p>
+          <span className="text-amber-600 font-bold text-sm flex items-center gap-2 relative z-10">
+            SOLICITAR <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
           </span>
         </button>
       </div>

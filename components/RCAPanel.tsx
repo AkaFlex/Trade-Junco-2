@@ -134,9 +134,26 @@ export const RCAPanel: React.FC<Props> = ({ user }) => {
                     {req.requestType === 'personalizacao' && (
                         <span className="text-white text-xs font-bold bg-brand-purple px-2 py-1 rounded-md ml-auto">PERSONALIZAÇÃO</span>
                     )}
+                    {req.requestType === 'evento' && (
+                        <span className="text-white text-xs font-bold bg-amber-500 px-2 py-1 rounded-md ml-auto">EVENTO</span>
+                    )}
+                    {req.requestType === 'acao_social' && (
+                        <span className="text-white text-xs font-bold bg-emerald-500 px-2 py-1 rounded-md ml-auto">AÇÃO SOCIAL</span>
+                    )}
                   </div>
 
-                  {req.requestType !== 'personalizacao' ? (
+                  {(req.requestType === 'evento' || req.requestType === 'acao_social') ? (
+                    <div className="flex flex-wrap items-center gap-3 md:gap-4 text-sm text-gray-500 mt-2">
+                      <div className="flex items-center gap-1.5">
+                        <Calendar size={16} className="text-gray-400"/>
+                        <span className="text-gray-700 font-medium">Local: {req.eventLocation || 'N/A'}</span>
+                      </div>
+                      <span className="hidden md:inline text-gray-200">•</span>
+                      <div className="flex items-center gap-1.5 bg-purple-50 px-2 py-0.5 rounded text-purple-700 font-bold border border-purple-100">
+                        <span>Horário: {req.eventTime || 'N/A'}</span>
+                      </div>
+                    </div>
+                  ) : req.requestType !== 'personalizacao' ? (
                     <div className="flex flex-wrap items-center gap-3 md:gap-4 text-sm text-gray-500 mt-2">
                        <div className="flex items-center gap-1.5" title="Data do Pedido">
                         <FileSpreadsheet size={16} className="text-gray-400"/>
@@ -175,7 +192,7 @@ export const RCAPanel: React.FC<Props> = ({ user }) => {
                 <div className="flex flex-row md:flex-col items-center md:items-end gap-3 w-full md:w-auto justify-between md:justify-center">
                   <StatusBadge status={req.status} variant="rca" />
 
-                  {(req.status === 'approved' || req.status === 'completed') && req.requestType !== 'personalizacao' && (
+                  {(req.status === 'approved' || req.status === 'completed') && !['personalizacao', 'evento', 'acao_social'].includes(req.requestType || '') && (
                     <button
                       onClick={() => handleOpenExecution(req)}
                       className={`text-sm px-6 py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-sm font-bold w-full md:w-auto mt-2 md:mt-0 ${req.status === 'approved' ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-gray-800 text-white hover:bg-black'}`}

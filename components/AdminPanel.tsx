@@ -3,12 +3,29 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { TradeRequest, REGIONS, RegionalBudget, SellOutProduct, PRODUCTS_LIST } from '../types';
 import { getAllRequests, updateRequestStatus, saveBudget, checkBudgetAvailability, getAllBudgets, checkAndExpireRequests, getBudgetsForMonth } from '../services/tradeService';
 import { getProducts, addProduct, updateProduct, deleteProduct } from '../services/productsService';
-import { Check, X, Ban, LayoutDashboard, Wallet, ListChecks, AlertTriangle, User, TrendingUp, Loader2, Eye, FileText, Camera, DollarSign, Archive, Clock, PlayCircle, CheckCircle, XCircle, ArchiveX, Shield, ChevronLeft, ChevronRight, Pencil, FileSpreadsheet, ShoppingBag, Search } from 'lucide-react';
+import { Check, X, Ban, LayoutDashboard, Wallet, ListChecks, AlertTriangle, User, TrendingUp, Loader2, Eye, FileText, Camera, DollarSign, Archive, Clock, PlayCircle, CheckCircle, XCircle, ArchiveX, Shield, ChevronLeft, ChevronRight, Pencil, FileSpreadsheet, ShoppingBag, Search, PartyPopper, HeartHandshake } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { StatusBadge } from './shared/StatusBadge';
 import { useToast } from './shared/Toast';
+
+const REQUEST_TYPE_LABELS: Record<string, string> = {
+  degustacao: 'Degustação',
+  personalizacao: 'Personalização',
+  evento: 'Evento',
+  acao_social: 'Ação Social',
+};
+// Personalização/Evento/Ação Social share the same "no execution phase" semantics:
+// approval goes straight to 'completed', and they never reach the finance/payment tab.
+const EVENT_LIKE_TYPES = ['personalizacao', 'evento', 'acao_social'];
+
+// Client-side only "Atrasado" (overdue) flag — never persisted to Firestore.
+// Scoped to Evento/Ação Social per their 3-day response SLA.
+const isRequestOverdue = (r: TradeRequest): boolean =>
+  (r.requestType === 'evento' || r.requestType === 'acao_social') &&
+  r.status === 'pending' &&
+  (Date.now() - r.createdAt) > 3 * 24 * 60 * 60 * 1000;
 
 // --- HELPER COMPONENTS ---
 
@@ -66,7 +83,7 @@ const exportToCSV = (requests: TradeRequest[]) => {
   };
 
   const rows = requests.map(r => [
-    r.requestType === 'personalizacao' ? 'Personalização' : 'Degustação',
+    REQUEST_TYPE_LABELS[r.requestType || 'degustacao'] || 'Degustação',
     r.id,
     r.tradeCode || '',
     r.rcaName,
@@ -267,10 +284,10 @@ export const AdminPanel: React.FC = () => {
         if (!confirmOverride) return;
       }
 
-      const nextStatus = req.requestType === 'personalizacao' ? 'completed' : 'approved';
+      const nextStatus = EVENT_LIKE_TYPES.includes(req.requestType || '') ? 'completed' : 'approved';
       await updateRequestStatus(req.id, nextStatus);
       setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: nextStatus } : r));
-      toast.success(req.requestType === 'personalizacao' ? "Personalização Aprovada!" : "Solicitação aprovada!", `${req.rcaName} — Parceiro ${req.partnerCode}`);
+      toast.success(`${REQUEST_TYPE_LABELS[req.requestType || 'degustacao']} aprovada!`, `${req.rcaName} — Parceiro ${req.partnerCode}`);
     } catch (error: any) {
       console.error("ERRO AO APROVAR:", error);
       toast.error("Erro ao aprovar solicitação", error.message);
@@ -643,11 +660,14 @@ export const AdminPanel: React.FC = () => {
                     <td className="p-4 font-black text-brand-purple whitespace-nowrap">{req.tradeCode || '---'}</td>
                     <td className="p-4 whitespace-nowrap">
                       <div className="flex items-center gap-2 mb-1">
-                        {req.requestType === 'personalizacao' ? (
-                          <span className="text-[10px] bg-pink-100 text-pink-700 font-bold px-2 py-0.5 rounded uppercase">Personalização</span>
-                        ) : (
-                          <span className="text-[10px] bg-purple-100 text-purple-700 font-bold px-2 py-0.5 rounded uppercase">Degustação</span>
-                        )}
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                          req.requestType === 'personalizacao' ? 'bg-pink-100 text-pink-700' :
+                          req.requestType === 'evento'         ? 'bg-amber-100 text-amber-700' :
+                          req.requestType === 'acao_social'    ? 'bg-emerald-100 text-emerald-700' :
+                                                                  'bg-purple-100 text-purple-700'
+                        }`}>
+                          {REQUEST_TYPE_LABELS[req.requestType || 'degustacao']}
+                        </span>
                       </div>
                       <div className="text-xs font-bold text-gray-700" title="Data Criada">Em: {new Date(req.createdAt).toLocaleDateString('pt-BR')}</div>
                     </td>
@@ -680,7 +700,7 @@ export const AdminPanel: React.FC = () => {
                         </div>
                       )}
                     </td>
-                    <td className="p-4 whitespace-nowrap"><StatusBadge status={req.status} /></td>
+                    <td className="p-4 whitespace-nowrap"><StatusBadge status={req.status} overdue={isRequestOverdue(req)} /></td>
                     <td className="p-4 text-center whitespace-nowrap">
                       <div className="flex justify-center gap-2">
                         <button onClick={() => setSelectedRequest(req)} className="text-gray-400 hover:text-brand-purple p-2 rounded-lg hover:bg-purple-50 transition" title="Detalhes"><Eye size={18}/></button>
@@ -694,7 +714,7 @@ export const AdminPanel: React.FC = () => {
                             </button>
                           </>
                         )}
-                        {view === 'finance' && req.requestType !== 'personalizacao' && (
+                        {view === 'finance' && !EVENT_LIKE_TYPES.includes(req.requestType || '') && (
                           <button onClick={() => handleMarkAsPaid(req)} disabled={payingId === req.id} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700 disabled:opacity-50 flex items-center gap-1">
                             {payingId === req.id ? <Loader2 className="animate-spin" size={12}/> : <DollarSign size={12}/>} PAGAR
                           </button>
@@ -923,13 +943,21 @@ export const AdminPanel: React.FC = () => {
               <div className="flex flex-col md:flex-row justify-between items-start gap-4">
                 <div>
                   <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                    {selectedRequest.requestType === 'personalizacao' ? <span className="text-pink-600 font-bold bg-pink-100 px-2 rounded-lg text-sm mr-2 uppercase">Personalização</span> : null}
+                    {selectedRequest.requestType && selectedRequest.requestType !== 'degustacao' ? (
+                      <span className={`font-bold px-2 rounded-lg text-sm mr-2 uppercase ${
+                        selectedRequest.requestType === 'personalizacao' ? 'text-pink-600 bg-pink-100' :
+                        selectedRequest.requestType === 'evento'         ? 'text-amber-700 bg-amber-100' :
+                                                                            'text-emerald-700 bg-emerald-100'
+                      }`}>
+                        {REQUEST_TYPE_LABELS[selectedRequest.requestType]}
+                      </span>
+                    ) : null}
                     Parceiro: {selectedRequest.partnerCode}
                   </h2>
                   <p className="text-gray-500">{selectedRequest.region}</p>
-                  <div className="mt-2 flex gap-2"><StatusBadge status={selectedRequest.status} /></div>
+                  <div className="mt-2 flex gap-2"><StatusBadge status={selectedRequest.status} overdue={isRequestOverdue(selectedRequest)} /></div>
                 </div>
-                {selectedRequest.requestType !== 'personalizacao' && (
+                {!EVENT_LIKE_TYPES.includes(selectedRequest.requestType || '') && (
                   <div className="text-right">
                     <div className="text-xs text-gray-400 uppercase font-bold">Valor Aprovado</div>
                     <div className="text-3xl font-bold text-brand-purple">R$ {Number(selectedRequest.totalValue).toLocaleString('pt-BR')}</div>
@@ -1024,6 +1052,62 @@ export const AdminPanel: React.FC = () => {
                 </div>
               )}
 
+              {/* DETALHES DO EVENTO */}
+              {selectedRequest.requestType === 'evento' && (
+                <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200 space-y-4">
+                  <div className="flex items-center gap-2 mb-2 border-b border-amber-100 pb-2">
+                    <PartyPopper className="text-amber-600"/> <h4 className="font-black text-amber-900 uppercase">Detalhes do Evento</h4>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-amber-900">
+                    <div><span className="block text-amber-500 text-xs uppercase font-bold mb-1">Tipo</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-amber-100 block">{selectedRequest.eventCategory === 'esportivo' ? 'Evento Esportivo' : selectedRequest.eventCategory === 'comercial' ? 'Evento Comercial' : 'N/A'}</span></div>
+                    <div><span className="block text-amber-500 text-xs uppercase font-bold mb-1">Instituição/Empresa</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-amber-100 block">{selectedRequest.institutionName || 'N/A'}</span></div>
+                    <div><span className="block text-amber-500 text-xs uppercase font-bold mb-1">Dia do Evento</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-amber-100 block">{selectedRequest.dateOfAction ? new Date(selectedRequest.dateOfAction + 'T12:00:00').toLocaleDateString('pt-BR') : 'N/A'}</span></div>
+                    <div><span className="block text-amber-500 text-xs uppercase font-bold mb-1">Horário</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-amber-100 block">{selectedRequest.eventTime || 'N/A'}</span></div>
+                    <div><span className="block text-amber-500 text-xs uppercase font-bold mb-1">Local</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-amber-100 block">{selectedRequest.eventLocation || 'N/A'}</span></div>
+                    <div><span className="block text-amber-500 text-xs uppercase font-bold mb-1">Público esperado</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-amber-100 block">{selectedRequest.expectedAudience || 'N/A'}</span></div>
+                  </div>
+                  <div>
+                    <span className="block text-amber-500 text-xs uppercase font-bold mb-1">Finalidade do Evento</span>
+                    <p className="font-medium bg-white px-3 py-2 rounded border border-amber-100">{selectedRequest.eventPurpose || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="block text-amber-500 text-xs uppercase font-bold mb-1">Participação da Junco</span>
+                    <p className="font-medium bg-white px-3 py-2 rounded border border-amber-100">{selectedRequest.juncoParticipation || 'N/A'}</p>
+                  </div>
+                  {selectedRequest.mediaKitUrl && (
+                    <a href={selectedRequest.mediaKitUrl} target="_blank" className="inline-flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-amber-200 text-amber-700 font-bold text-sm hover:bg-amber-100 transition">
+                      <FileText size={16}/> Ver Mídia Kit
+                    </a>
+                  )}
+                </div>
+              )}
+
+              {/* DETALHES DA AÇÃO SOCIAL */}
+              {selectedRequest.requestType === 'acao_social' && (
+                <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-200 space-y-4">
+                  <div className="flex items-center gap-2 mb-2 border-b border-emerald-100 pb-2">
+                    <HeartHandshake className="text-emerald-600"/> <h4 className="font-black text-emerald-900 uppercase">Detalhes da Ação Social</h4>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-emerald-900">
+                    <div><span className="block text-emerald-500 text-xs uppercase font-bold mb-1">Data Sazonal?</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-emerald-100 block">{selectedRequest.seasonalDate === 'sim' ? `Sim — ${selectedRequest.seasonalDateDescription || 'N/A'}` : 'Não'}</span></div>
+                    <div><span className="block text-emerald-500 text-xs uppercase font-bold mb-1">Dia do Evento</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-emerald-100 block">{selectedRequest.dateOfAction ? new Date(selectedRequest.dateOfAction + 'T12:00:00').toLocaleDateString('pt-BR') : 'N/A'}</span></div>
+                    <div><span className="block text-emerald-500 text-xs uppercase font-bold mb-1">Horário</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-emerald-100 block">{selectedRequest.eventTime || 'N/A'}</span></div>
+                    <div><span className="block text-emerald-500 text-xs uppercase font-bold mb-1">Local</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-emerald-100 block">{selectedRequest.eventLocation || 'N/A'}</span></div>
+                    <div><span className="block text-emerald-500 text-xs uppercase font-bold mb-1">Quantidade de itens</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-emerald-100 block">{selectedRequest.itemQuantity ?? 'N/A'}</span></div>
+                    <div><span className="block text-emerald-500 text-xs uppercase font-bold mb-1">Produto desejado</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-emerald-100 block">{selectedRequest.desiredProduct || 'N/A'}</span></div>
+                  </div>
+                  <div>
+                    <span className="block text-emerald-500 text-xs uppercase font-bold mb-1">Finalidade</span>
+                    <p className="font-medium bg-white px-3 py-2 rounded border border-emerald-100">{selectedRequest.eventPurpose || 'N/A'}</p>
+                  </div>
+                  {selectedRequest.actionOfficeUrl && (
+                    <a href={selectedRequest.actionOfficeUrl} target="_blank" className="inline-flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-emerald-200 text-emerald-700 font-bold text-sm hover:bg-emerald-100 transition">
+                      <FileText size={16}/> Ver Ofício da Ação
+                    </a>
+                  )}
+                </div>
+              )}
+
               {/* DADOS PIX */}
               {(selectedRequest.pixKey || selectedRequest.pixHolder) && (
                 <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
@@ -1043,7 +1127,7 @@ export const AdminPanel: React.FC = () => {
                 </div>
               )}
 
-              {selectedRequest.requestType !== 'personalizacao' && (
+              {!EVENT_LIKE_TYPES.includes(selectedRequest.requestType || '') && (
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
                     <h4 className="font-bold text-gray-700 mb-3 flex items-center gap-2"><Camera size={16}/> Fotos</h4>

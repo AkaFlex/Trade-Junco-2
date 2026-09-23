@@ -2,16 +2,8 @@
 // unsigned upload API (same "no backend needed" pattern as the ImgBB uploads used
 // elsewhere in this app, but Cloudinary also supports non-image files like PDFs).
 //
-// ============================================================
-// COLE SUAS CHAVES DO CLOUDINARY AQUI
-// ============================================================
-// 1. Crie uma conta gratuita em https://cloudinary.com
-// 2. Copie o "Cloud Name" do dashboard.
-// 3. Vá em Settings > Upload > Add upload preset, defina "Signing Mode: Unsigned"
-//    e copie o nome do preset.
-// 4. Vá em Settings > Security e habilite "Allow delivery of PDF and ZIP files".
-const CLOUDINARY_CLOUD_NAME = 'COLE_SEU_CLOUD_NAME_AQUI';
-const CLOUDINARY_UPLOAD_PRESET = 'COLE_SEU_UPLOAD_PRESET_AQUI';
+const CLOUDINARY_CLOUD_NAME = 'iblpzi6m';
+const CLOUDINARY_UPLOAD_PRESET = 'qfxcgdhb';
 
 export const uploadEventAttachment = async (
   file: File,

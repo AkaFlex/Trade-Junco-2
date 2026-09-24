@@ -11,6 +11,7 @@ import { HomeMenu } from './components/HomeMenu';
 import { UserProfile, ADMIN_EMAILS } from './types';
 import { LogOut, Home, Shield } from 'lucide-react';
 import { ToastProvider, useToast } from './components/shared/Toast';
+import juncoLogo from './assets/junco-logo.png';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -94,9 +95,12 @@ const App: React.FC = () => {
           <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
             
             <div className="flex items-center gap-3">
-              <div className="bg-white p-1 rounded-md shrink-0 cursor-pointer" onClick={() => setFlow('home')}>
-                <div className={`w-6 h-6 rounded-full ${bgColor} transition-colors duration-500`}></div>
-              </div>
+              <img
+                src={juncoLogo}
+                alt="Junco"
+                className="h-9 w-auto shrink-0 cursor-pointer"
+                onClick={() => setFlow('home')}
+              />
               <div className="min-w-0 cursor-pointer" onClick={() => setFlow('home')}>
                 <h1 className="font-bold text-base md:text-lg leading-tight tracking-wide truncate">JUNCO TRADE</h1>
                 <p className="text-[10px] opacity-80 uppercase tracking-widest truncate">

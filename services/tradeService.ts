@@ -1,55 +1,62 @@
 
-import { 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
-  getDocs, 
-  doc, 
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
   updateDoc,
   setDoc,
   getDoc,
-  writeBatch
+  writeBatch,
+  serverTimestamp
 } from "firebase/firestore";
-import { db } from "../firebaseConfig";
-import { TradeRequest, RegionalBudget, Region, REGIONS } from "../types";
+import { db, auth } from "../firebaseConfig";
+import { TradeRequest, RegionalBudget, Region, REGIONS, PaymentInfo } from "../types";
+import { normalizeTradeCode } from "./tradeCode";
 
 // ---------------------------------------------------------------------------
 // REQUESTS
 // ---------------------------------------------------------------------------
+// Acesso público a uma solicitação é só por código: codes/{tradeCode} -> requestId,
+// depois get em requests/{id}. Listar a coleção é exclusivo do gestor (firestore.rules).
 
 export const createRequest = async (request: Omit<TradeRequest, 'id'>) => {
-  return await addDoc(collection(db, "requests"), request);
+  const ref = doc(collection(db, "requests"));
+  await setDoc(ref, { ...request, createdAtServer: serverTimestamp() });
+  if (request.tradeCode) {
+    try {
+      await setDoc(doc(db, "codes", request.tradeCode), { requestId: ref.id });
+    } catch (e) {
+      // A solicitação já foi gravada; o índice pode ser recriado pelo gestor em "Migrar segurança".
+      console.error("Falha ao indexar código da solicitação", e);
+    }
+  }
+  return ref;
 };
 
-export const getRequestsByUser = async (rcaEmail: string) => {
-  if (!rcaEmail) return [];
-  const emailLower = rcaEmail.toLowerCase().trim();
-  const q = query(collection(db, "requests"), where("rcaEmail", "==", emailLower));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as TradeRequest));
-};
-
-export const getRequestsByPartner = async (partnerCode: string) => {
-  if (!partnerCode) return [];
-  const q = query(
-    collection(db, "requests"), 
-    where("partnerCode", "==", partnerCode),
-    where("status", "==", "approved")
-  );
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as TradeRequest));
+export const getRequestById = async (id: string): Promise<TradeRequest | null> => {
+  const snap = await getDoc(doc(db, "requests", id));
+  return snap.exists() ? ({ id: snap.id, ...snap.data() } as TradeRequest) : null;
 };
 
 export const getRequestByTradeCode = async (tradeCode: string): Promise<TradeRequest | null> => {
   if (!tradeCode) return null;
-  const q = query(
-    collection(db, "requests"),
-    where("tradeCode", "==", tradeCode.trim().toUpperCase())
-  );
-  const snapshot = await getDocs(q);
-  if (snapshot.empty) return null;
-  return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as TradeRequest;
+  const code = normalizeTradeCode(tradeCode);
+
+  const codeSnap = await getDoc(doc(db, "codes", code)).catch(() => null);
+  if (codeSnap?.exists()) {
+    return getRequestById(codeSnap.data().requestId);
+  }
+
+  // Compatibilidade com pedidos ainda não indexados (só funciona para o gestor após as novas regras).
+  try {
+    const snapshot = await getDocs(query(collection(db, "requests"), where("tradeCode", "==", code)));
+    if (snapshot.empty) return null;
+    return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as TradeRequest;
+  } catch {
+    return null;
+  }
 };
 
 export const getAllRequests = async () => {
@@ -57,10 +64,44 @@ export const getAllRequests = async () => {
   return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as TradeRequest));
 };
 
-export const updateRequestStatus = async (id: string, status: string, reason?: string) => {
+const auditFields = () => ({
+  updatedBy: auth.currentUser?.email || 'desconhecido',
+  updatedAt: serverTimestamp(),
+});
+
+export const adminUpdateRequest = async (id: string, data: Record<string, unknown>) => {
   if (!id) throw new Error("ID inválido para atualização");
-  const ref = doc(db, "requests", id);
-  await updateDoc(ref, { status, rejectionReason: reason ?? null });
+  await updateDoc(doc(db, "requests", id), { ...data, ...auditFields() });
+};
+
+export const updateRequestStatus = async (id: string, status: string, reason?: string) => {
+  await adminUpdateRequest(id, { status, rejectionReason: reason ?? null });
+};
+
+// ---------------------------------------------------------------------------
+// PAYMENT (PIX/CPF) — subdocumento legível só pelo gestor
+// ---------------------------------------------------------------------------
+
+const paymentRef = (requestId: string) => doc(db, "requests", requestId, "private", "payment");
+
+export const savePaymentInfo = async (requestId: string, info: PaymentInfo) => {
+  await setDoc(paymentRef(requestId), { ...info, savedAt: serverTimestamp() });
+};
+
+export const getPaymentInfo = async (req: TradeRequest): Promise<PaymentInfo | null> => {
+  try {
+    const snap = await getDoc(paymentRef(req.id));
+    if (snap.exists()) {
+      const d = snap.data();
+      return { pixKey: d.pixKey, pixHolder: d.pixHolder, pixCpf: d.pixCpf };
+    }
+  } catch (e) {
+    console.error("Erro ao ler dados de pagamento", e);
+  }
+  if (req.pixKey || req.pixHolder || req.pixCpf) {
+    return { pixKey: req.pixKey || '', pixHolder: req.pixHolder || '', pixCpf: req.pixCpf || '' };
+  }
+  return null;
 };
 
 // ---------------------------------------------------------------------------

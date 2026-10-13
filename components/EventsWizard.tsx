@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { UserProfile, REGIONS } from '../types';
 import { createRequest } from '../services/tradeService';
+import { generateTradeCode } from '../services/tradeCode';
 import { uploadEventAttachment } from '../services/eventAttachmentService';
 import { PartyPopper, HeartHandshake, User, Phone, Building2, Calendar, Clock, MapPin, Users, FileText, Paperclip, CheckCircle, Copy, Loader2, X, ArrowRight } from 'lucide-react';
 import { useToast } from './shared/Toast';
@@ -107,7 +108,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
 
     setLoading(true);
     try {
-      const tradeCode = 'TJ-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+      const tradeCode = generateTradeCode();
 
       const req: any = {
         uid: user?.uid || 'guest',

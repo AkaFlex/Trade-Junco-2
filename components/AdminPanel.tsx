@@ -1,12 +1,11 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { TradeRequest, REGIONS, RegionalBudget, SellOutProduct, PRODUCTS_LIST } from '../types';
-import { getAllRequests, updateRequestStatus, saveBudget, checkBudgetAvailability, getAllBudgets, checkAndExpireRequests, getBudgetsForMonth } from '../services/tradeService';
+import { TradeRequest, REGIONS, RegionalBudget, SellOutProduct, PRODUCTS_LIST, PaymentInfo } from '../types';
+import { getAllRequests, updateRequestStatus, adminUpdateRequest, getPaymentInfo, saveBudget, checkBudgetAvailability, getAllBudgets, checkAndExpireRequests, getBudgetsForMonth } from '../services/tradeService';
 import { getProducts, addProduct, updateProduct, deleteProduct } from '../services/productsService';
+import { downloadBackup, runSecurityMigration } from '../services/maintenanceService';
 import { Check, X, Ban, LayoutDashboard, Wallet, ListChecks, AlertTriangle, User, TrendingUp, Loader2, Eye, FileText, Camera, DollarSign, Archive, Clock, PlayCircle, CheckCircle, XCircle, ArchiveX, Shield, ChevronLeft, ChevronRight, Pencil, FileSpreadsheet, ShoppingBag, Search, PartyPopper, HeartHandshake } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
 import { StatusBadge } from './shared/StatusBadge';
 import { useToast } from './shared/Toast';
 
@@ -59,7 +58,7 @@ const NavButton = ({ active, onClick, icon, label, count }: any) => (
 // ---------------------------------------------------------------------------
 // CSV Export Helper
 // ---------------------------------------------------------------------------
-const exportToCSV = (requests: TradeRequest[]) => {
+const exportToCSV = (requests: TradeRequest[], payments: Record<string, PaymentInfo | null>) => {
   const headers = [
     'Tipo', 'ID (Firestore)', 'Código Único', 'RCA', 'Email RCA', 'Telefone', 'Cod. Parceiro', 'Região',
     'Data do Pedido', 'Data da Ação', 'Dias', 'Valor (R$)', 'Status',
@@ -97,9 +96,9 @@ const exportToCSV = (requests: TradeRequest[]) => {
     Number(r.totalValue).toFixed(2).replace('.', ','),
     STATUS_LABELS[r.status] ?? r.status,
     r.rejectionReason ?? '',
-    r.pixKey ?? '',
-    r.pixHolder ?? '',
-    r.pixCpf ?? '',
+    payments[r.id]?.pixKey ?? '',
+    payments[r.id]?.pixHolder ?? '',
+    payments[r.id]?.pixCpf ?? '',
     new Date(r.createdAt).toLocaleString('pt-BR'),
     r.customizationSpace ?? '',
     r.brandCategory ?? '',
@@ -250,7 +249,7 @@ export const AdminPanel: React.FC = () => {
       return;
     }
     try {
-      await updateDoc(doc(db, "requests", req.id), { totalValue: newValue });
+      await adminUpdateRequest(req.id, { totalValue: newValue });
       setRequests(prev => prev.map(r => r.id === req.id ? { ...r, totalValue: newValue } : r));
       setEditingValueId(null);
       toast.success("Valor atualizado com sucesso!");
@@ -399,7 +398,7 @@ export const AdminPanel: React.FC = () => {
 
   const saveAdminSupplier = async (req: TradeRequest) => {
     try {
-      await updateDoc(doc(db, "requests", req.id), { adminAssignedSupplier: adminSupplier });
+      await adminUpdateRequest(req.id, { adminAssignedSupplier: adminSupplier });
       setRequests(prev => prev.map(r => r.id === req.id ? {...r, adminAssignedSupplier: adminSupplier} : r));
       setSelectedRequest({...req, adminAssignedSupplier: adminSupplier});
       toast.success("Fornecedor atualizado com sucesso!");
@@ -408,14 +407,51 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  const handleExport = useCallback(() => {
+  const handleExport = useCallback(async () => {
     if (requests.length === 0) {
       toast.warning("Nenhum dado para exportar.");
       return;
     }
-    exportToCSV(requests);
+    const entries = await Promise.all(requests.map(async r => [r.id, await getPaymentInfo(r)] as const));
+    exportToCSV(requests, Object.fromEntries(entries));
     toast.success("CSV exportado!", `${requests.length} solicitações incluídas.`);
   }, [requests]);
+
+  const [selectedPayment, setSelectedPayment] = useState<PaymentInfo | null>(null);
+  useEffect(() => {
+    setSelectedPayment(null);
+    if (!selectedRequest) return;
+    let active = true;
+    getPaymentInfo(selectedRequest).then(p => { if (active) setSelectedPayment(p); });
+    return () => { active = false; };
+  }, [selectedRequest?.id]);
+
+  const [maintenanceBusy, setMaintenanceBusy] = useState(false);
+
+  const handleBackup = useCallback(async () => {
+    setMaintenanceBusy(true);
+    try {
+      await downloadBackup();
+      toast.success("Backup baixado!", "Guarde o arquivo JSON em local seguro.");
+    } catch (e: any) {
+      toast.error("Erro ao gerar backup", e?.message);
+    } finally {
+      setMaintenanceBusy(false);
+    }
+  }, []);
+
+  const handleSecurityMigration = useCallback(async () => {
+    setMaintenanceBusy(true);
+    try {
+      const r = await runSecurityMigration();
+      toast.success("Migração concluída!", `${r.indexed} códigos indexados · ${r.paymentsMoved} PIX protegidos · ${r.total} solicitações verificadas`);
+      await loadData();
+    } catch (e: any) {
+      toast.error("Erro na migração", e?.message);
+    } finally {
+      setMaintenanceBusy(false);
+    }
+  }, [loadData]);
 
   // ------------------------------------------------------------------
   // MEMOIZED LISTS & STATS
@@ -500,7 +536,23 @@ export const AdminPanel: React.FC = () => {
           </h1>
           <p className="text-gray-500 font-medium text-sm md:text-base">Administração de Verbas e Aprovações</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={handleBackup}
+            disabled={maintenanceBusy}
+            title="Baixa uma cópia (JSON) de todas as coleções"
+            className="bg-white text-gray-700 border border-gray-200 px-4 py-2.5 rounded-xl hover:bg-gray-50 transition flex items-center gap-2 font-bold text-sm disabled:opacity-50"
+          >
+            <Archive size={18} /> <span className="hidden md:inline">Backup</span>
+          </button>
+          <button
+            onClick={handleSecurityMigration}
+            disabled={maintenanceBusy}
+            title="Indexa os códigos TJ e protege os dados de PIX (rodar após publicar as novas regras)"
+            className="bg-white text-gray-700 border border-gray-200 px-4 py-2.5 rounded-xl hover:bg-gray-50 transition flex items-center gap-2 font-bold text-sm disabled:opacity-50"
+          >
+            <Shield size={18} /> <span className="hidden md:inline">Migrar segurança</span>
+          </button>
           <button
             onClick={handleExport}
             className="bg-green-700 text-white px-4 py-2.5 rounded-xl hover:bg-green-800 transition shadow-lg hover:shadow-green-200 flex items-center gap-2 font-bold text-sm"
@@ -1109,13 +1161,13 @@ export const AdminPanel: React.FC = () => {
               )}
 
               {/* DADOS PIX */}
-              {(selectedRequest.pixKey || selectedRequest.pixHolder) && (
+              {selectedPayment && (
                 <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
                   <h4 className="font-bold text-blue-800 mb-3 flex items-center gap-2"><Wallet size={16}/> Dados para Pagamento (PIX)</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-blue-900">
-                    <div><span className="block text-blue-400 text-xs uppercase font-bold">Chave PIX</span><span className="font-medium">{selectedRequest.pixKey || 'N/A'}</span></div>
-                    <div><span className="block text-blue-400 text-xs uppercase font-bold">Titular</span><span className="font-medium">{selectedRequest.pixHolder || 'N/A'}</span></div>
-                    <div><span className="block text-blue-400 text-xs uppercase font-bold">CPF do Titular</span><span className="font-medium">{selectedRequest.pixCpf || 'N/A'}</span></div>
+                    <div><span className="block text-blue-400 text-xs uppercase font-bold">Chave PIX</span><span className="font-medium">{selectedPayment.pixKey || 'N/A'}</span></div>
+                    <div><span className="block text-blue-400 text-xs uppercase font-bold">Titular</span><span className="font-medium">{selectedPayment.pixHolder || 'N/A'}</span></div>
+                    <div><span className="block text-blue-400 text-xs uppercase font-bold">CPF do Titular</span><span className="font-medium">{selectedPayment.pixCpf || 'N/A'}</span></div>
                   </div>
                 </div>
               )}

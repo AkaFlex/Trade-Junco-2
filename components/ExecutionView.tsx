@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { TradeRequest } from '../types';
 import { doc, updateDoc, arrayUnion, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { savePaymentInfo } from '../services/tradeService';
 import { Camera, ArrowLeft, UploadCloud, CheckCircle, Clock, Image as ImageIcon, Lock, Wallet, User, AlertTriangle } from 'lucide-react';
 
 interface Props {
@@ -152,13 +153,15 @@ export const ExecutionView: React.FC<Props> = ({ request: initialRequest, onBack
     if (!pixData.holder) return alert("Preencha o titular do PIX.");
     if (!pixData.cpf) return alert("Preencha o CPF do titular.");
 
+    const payment = { pixKey: pixData.key, pixHolder: pixData.holder, pixCpf: pixData.cpf };
     try {
-        await updateDoc(doc(db, "requests", request.id), {
-            pixKey: pixData.key,
-            pixHolder: pixData.holder,
-            pixCpf: pixData.cpf,
-            status: 'completed'
-        });
+        try {
+            await savePaymentInfo(request.id, payment);
+        } catch {
+            // Regras antigas (antes da publicação das novas) não conhecem o subdocumento.
+            await updateDoc(doc(db, "requests", request.id), payment);
+        }
+        await updateDoc(doc(db, "requests", request.id), { status: 'completed' });
         alert("Solicitação finalizada! Aguardando pagamento pelo setor financeiro.");
         onBack();
     } catch (e) {

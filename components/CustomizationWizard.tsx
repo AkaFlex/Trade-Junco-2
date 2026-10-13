@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { UserProfile, REGIONS } from '../types';
 import { createRequest } from '../services/tradeService';
+import { generateTradeCode } from '../services/tradeCode';
 import { AlertCircle, User, Phone, Store, CheckCircle, Copy, FileImage, ShieldAlert, Palette, MapPin, X, Loader2, PlusCircle, Eye } from 'lucide-react';
 import { useToast } from './shared/Toast';
 
@@ -118,14 +119,14 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
     
     setLoading(true);
     try {
-      const tradeCode = 'TJ-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+      const tradeCode = generateTradeCode();
       
       const req = {
         uid: user?.uid || 'guest',
         requestType: 'personalizacao' as const,
         tradeCode,
         rcaName: formData.rcaName,
-        rcaEmail: formData.rcaEmail,
+        rcaEmail: formData.rcaEmail.trim().toLowerCase(),
         rcaPhone: formData.rcaPhone,
         partnerCode: formData.partnerCode,
         region: formData.region,

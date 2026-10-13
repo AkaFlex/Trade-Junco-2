@@ -68,9 +68,15 @@ export interface TradeRequest {
   
   // Execution Phase
   salesReports?: SalesReport[];
+  // Legado: PIX/CPF agora ficam em requests/{id}/private/payment (ver PaymentInfo).
   pixKey?: string;
   pixHolder?: string;
   pixCpf?: string;
+
+  // Trilha de auditoria (gravada pelo gestor / servidor)
+  updatedBy?: string;
+  updatedAt?: unknown;
+  createdAtServer?: unknown;
   
   // Legacy single fields
   photoUrl?: string;
@@ -105,6 +111,12 @@ export interface TradeRequest {
   actionOfficeUrl?: string;         // Ação Social: anexo obrigatório (Ofício da ação)
 }
 
+export interface PaymentInfo {
+  pixKey: string;
+  pixHolder: string;
+  pixCpf: string;
+}
+
 export interface RegionalBudget {
   id: string; // Composite key: Region_Month (e.g., "Sul_2023-10")
   region: Region;
@@ -134,6 +146,7 @@ export interface SellOutProduct {
   createdAt: number;
 }
 
+// Precisa ser IGUAL à função isAdmin() de firestore.rules (sem custom claims, as duas listas coexistem).
 export const ADMIN_EMAILS = [
   'mateus.silva@junco.com.br',
   'cissia.sousa@junco.com.br',

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { TradeRequest, UserProfile } from '../types';
-import { getRequestsByUser, getRequestByTradeCode } from '../services/tradeService';
+import { getRequestByTradeCode } from '../services/tradeService';
 import { ExecutionView } from './ExecutionView';
 import { StatusBadge } from './shared/StatusBadge';
 import { FileText, AlertCircle, Clock, Search, FileSpreadsheet, Eye, Calendar } from 'lucide-react';
@@ -34,13 +34,8 @@ export const RCAPanel: React.FC<Props> = ({ user }) => {
     localStorage.setItem('junco_rca_search', query.trim());
     
     try {
-      if (query.includes('@')) {
-        const data = await getRequestsByUser(query.trim());
-        setRequests(data.sort((a, b) => b.createdAt - a.createdAt));
-      } else {
-        const data = await getRequestByTradeCode(query.trim());
-        setRequests(data ? [data] : []);
-      }
+      const data = await getRequestByTradeCode(query);
+      setRequests(data ? [data] : []);
     } catch (e) {
       console.error(e);
       toast.error("Erro ao buscar solicitações");
@@ -85,7 +80,7 @@ export const RCAPanel: React.FC<Props> = ({ user }) => {
         <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4">
           <input
             type="text"
-            placeholder="E-mail ou Código da Ação (Ex: TJ-A1B2)"
+            placeholder="Código da Ação (Ex: TJ-7KQ4M9X2PA)"
             className="flex-1 border-2 border-gray-100 bg-gray-50 p-4 rounded-xl focus:ring-2 focus:ring-purple-600 focus:bg-white outline-none font-bold text-gray-700 transition"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
@@ -94,9 +89,7 @@ export const RCAPanel: React.FC<Props> = ({ user }) => {
             <Search size={20} /> {loadingSearch ? 'Buscando...' : 'BUSCAR'}
           </button>
         </form>
-        {searched && requests.length > 0 && (
-          <p className="text-xs text-gray-400 mt-3 font-medium">Mostrando {requests.length} solicitação(ões) encontrada(s).</p>
-        )}
+        <p className="text-xs text-gray-400 mt-3 font-medium">Por segurança, a busca é feita só pelo código recebido ao criar a solicitação.</p>
       </div>
 
       <div className="grid gap-4">

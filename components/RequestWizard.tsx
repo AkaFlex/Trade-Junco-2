@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { UserProfile, REGIONS } from '../types';
 import { createRequest } from '../services/tradeService';
+import { generateTradeCode } from '../services/tradeCode';
 import { AlertTriangle, Ban, AlertCircle, User, Phone, Mail, Calendar, Clock, Store, FileSpreadsheet, CheckCircle, Copy } from 'lucide-react';
 import { useToast } from './shared/Toast';
 
@@ -49,7 +50,7 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
     const date = new Date().toISOString().split('T')[0];
     const partner = "Não Informado"; // Bloqueio na etapa inicial
     const region = formData.region; // Default region
-    const tradeCode = 'TJ-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+    const tradeCode = generateTradeCode();
 
     try {
       setLoading(true);
@@ -57,7 +58,7 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
        uid: user?.uid || 'guest',
        tradeCode,
        rcaName: formData.rcaName,
-       rcaEmail: formData.rcaEmail,
+       rcaEmail: formData.rcaEmail.trim().toLowerCase(),
        rcaPhone: formData.rcaPhone,
        createdAt: Date.now(),
        partnerCode: partner,
@@ -112,13 +113,13 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
 
     setLoading(true);
     try {
-      const tradeCode = 'TJ-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+      const tradeCode = generateTradeCode();
 
       const req = {
         uid: user?.uid || 'guest',
         tradeCode,
         rcaName: formData.rcaName,
-        rcaEmail: formData.rcaEmail,
+        rcaEmail: formData.rcaEmail.trim().toLowerCase(),
         rcaPhone: formData.rcaPhone,
         createdAt: Date.now(),
         partnerCode: formData.partnerCode,

@@ -1,48 +1,115 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Check if the user is authenticated as an Admin via Firebase Auth
+
+    // Precisa ser IGUAL a ADMIN_EMAILS em types.ts.
     function isAdmin() {
-       return request.auth != null && (
-         request.auth.token.email == 'mateus.silva@junco.com.br' || 
-         request.auth.token.email == 'cissia.souza@junco.com.br' ||
-         request.auth.token.email == 'maria.santana@junco.com.br'
-       );
+      return request.auth != null && request.auth.token.email in [
+        'mateus.silva@junco.com.br',
+        'cissia.sousa@junco.com.br',
+        'maria.santana@junco.com.br'
+      ];
     }
 
-    // --- REQUESTS COLLECTION ---
+    function isDegustacao(d) {
+      return !('requestType' in d) || d.requestType == 'degustacao';
+    }
+
+    // Ação com pelo menos ~7 dias de antecedência (folga de 2 dias para fuso/horário).
+    function leadTimeOk(dateStr) {
+      let p = dateStr.split('-');
+      return p.size() == 3
+        && timestamp.date(int(p[0]), int(p[1]), int(p[2])) > request.time + duration.value(5, 'd');
+    }
+
+    function validNewRequest() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['uid', 'tradeCode', 'rcaName', 'rcaEmail', 'rcaPhone', 'createdAt',
+                              'partnerCode', 'region', 'dateOfAction', 'days', 'totalValue',
+                              'status', 'createdAtServer'])
+        && !d.keys().hasAny(['salesReports', 'photoUrls', 'receiptUrls', 'pixKey', 'pixHolder',
+                             'pixCpf', 'adminAssignedSupplier', 'updatedBy', 'updatedAt'])
+        && d.createdAtServer == request.time
+        && d.tradeCode is string && d.tradeCode.matches('^TJ-[A-Z0-9]{6,12}$')
+        && d.rcaName is string && d.rcaName.size() <= 200
+        && d.dateOfAction is string
+        && d.days is int && d.totalValue is number
+        && (
+          (d.status == 'blocked_volume' && d.days == 0 && d.totalValue == 0)
+          || (d.status == 'pending' && !('rejectionReason' in d) && (
+                (isDegustacao(d) && d.days >= 1 && d.days <= 5
+                   && d.totalValue == d.days * 150 && leadTimeOk(d.dateOfAction))
+             || (d.requestType in ['personalizacao', 'evento', 'acao_social']
+                   && d.days == 1 && d.totalValue == 0)
+          ))
+        );
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // Atualizações permitidas sem login (o código TJ funciona como credencial):
+    // degustadora adiciona 1 relatório de Sell-Out; RCA anexa fotos/notas e finaliza o reembolso.
+    function validPublicUpdate() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return before.status == 'approved' && (
+        (changedKeys().hasOnly(['salesReports'])
+           && after.salesReports.size() == before.get('salesReports', []).size() + 1
+           && after.salesReports.size() <= before.days)
+        || changedKeys().hasOnly(['photoUrls', 'receiptUrls'])
+        || (changedKeys().hasOnly(['status'])
+           && after.status == 'completed'
+           && after.get('photoUrls', []).size() > 0
+           && after.get('receiptUrls', []).size() > 0)
+      );
+    }
+
+    // --- REQUESTS ---
     match /requests/{requestId} {
-      // 1. Admins have full access
       allow read, write: if isAdmin();
-      
-      // 2. PUBLIC/RCA ACCESS (No Login Requirement)
-      // Allow creation of new requests by anyone (RCA)
-      allow create: if true;
-      
-      // Allow reading/updating if you know the exact ID or query (Simplified for "No Login")
-      // In a strict environment, we would validate the email, but for this use case:
-      allow read: if true;
-      allow update: if true; 
+      allow get: if true;            // o ID do documento é imprevisível; listar é só para o gestor
+      allow create: if validNewRequest();
+      allow update: if validPublicUpdate();
+
+      // PIX/CPF: gravado pelo RCA no reembolso, lido apenas pelo gestor.
+      match /private/{docId} {
+        allow read, write: if isAdmin();
+        allow create, update: if docId == 'payment'
+          && get(/databases/$(database)/documents/requests/$(requestId)).data.status == 'approved'
+          && request.resource.data.keys().hasOnly(['pixKey', 'pixHolder', 'pixCpf', 'savedAt'])
+          && request.resource.data.pixKey is string && request.resource.data.pixKey.size() <= 200
+          && request.resource.data.pixHolder is string && request.resource.data.pixHolder.size() <= 200
+          && request.resource.data.pixCpf is string && request.resource.data.pixCpf.size() <= 20
+          && request.resource.data.savedAt == request.time;
+      }
     }
-    
-    // --- BUDGETS COLLECTION ---
+
+    // --- CÓDIGOS TJ -> requestId (acesso público por código, sem listagem) ---
+    match /codes/{code} {
+      allow read, write: if isAdmin();
+      allow get: if true;
+      allow create: if request.resource.data.keys().hasOnly(['requestId'])
+        && get(/databases/$(database)/documents/requests/$(request.resource.data.requestId)).data.tradeCode == code;
+    }
+
+    // --- BUDGETS ---
     match /budgets/{budgetId} {
-      // Budgets are public to read (for validation) but only writable by Admin
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // --- PRODUCTS COLLECTION (Sell-Out checklist) ---
+    // --- PRODUCTS (checklist do Sell-Out) ---
     match /products/{productId} {
-      // Public read so the no-login Sell-Out form can fetch the live list
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // --- USERS COLLECTION ---
-    match /users/{userId} {
-      allow read, write: if isAdmin();
+    // --- SHOWCASE (Vitrine de Ações) ---
+    match /showcase/{itemId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }

@@ -14,6 +14,8 @@ import {
 import { db, auth } from "../firebaseConfig";
 import { TradeRequest, RegionalBudget, Region, REGIONS, PaymentInfo } from "../types";
 import { normalizeTradeCode } from "./tradeCode";
+import { todayLocal, parseLocalDate, addDays } from "../utils/date";
+import { REIMBURSEMENT_GRACE_DAYS, FIRESTORE_BATCH_LIMIT } from "../config";
 
 // ---------------------------------------------------------------------------
 // REQUESTS
@@ -150,63 +152,77 @@ export const getBudgetsForMonth = async (month: string): Promise<Record<string, 
 // AUTO-EXPIRE
 // ---------------------------------------------------------------------------
 
+/** Último dia para o RCA enviar o reembolso: fim da ação + tolerância. */
+export const reimbursementDeadline = (req: Pick<TradeRequest, 'dateOfAction' | 'days'>): Date =>
+  addDays(parseLocalDate(req.dateOfAction), Math.max(1, Number(req.days) || 1) - 1 + REIMBURSEMENT_GRACE_DAYS);
+
 /**
- * Checks for 'approved' requests whose dateOfAction is in a previous month
- * and marks them as 'expired' via a Firestore batch write.
+ * Degustações aprovadas cujo prazo de reembolso já passou viram 'expired'.
+ * O prazo conta a partir do fim da ação (não da virada do mês), em data local.
  */
 export const checkAndExpireRequests = async () => {
   try {
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const q = query(collection(db, "requests"), where("status", "==", "approved"));
-    const snapshot = await getDocs(q);
+    const snapshot = await getDocs(query(collection(db, "requests"), where("status", "==", "approved")));
+    const today = parseLocalDate(todayLocal());
 
-    const batch = writeBatch(db);
-    let count = 0;
-
-    snapshot.docs.forEach((d) => {
+    const expired = snapshot.docs.filter(d => {
       const data = d.data() as TradeRequest;
-      if (data.dateOfAction && data.dateOfAction.slice(0, 7) < currentMonth) {
-        batch.update(doc(db, "requests", d.id), {
-          status: 'expired',
-          rejectionReason: 'Vencimento Automático: Ação não realizada dentro do mês de competência.'
-        });
-        count++;
-      }
+      return data.dateOfAction && reimbursementDeadline(data) < today;
     });
 
-    if (count > 0) {
+    for (let i = 0; i < expired.length; i += FIRESTORE_BATCH_LIMIT) {
+      const batch = writeBatch(db);
+      expired.slice(i, i + FIRESTORE_BATCH_LIMIT).forEach(d => {
+        const deadline = reimbursementDeadline(d.data() as TradeRequest).toLocaleDateString('pt-BR');
+        batch.update(doc(db, "requests", d.id), {
+          status: 'expired',
+          rejectionReason: `Vencimento automático: reembolso não enviado até ${deadline}.`,
+          updatedBy: `sistema (aberto por ${auth.currentUser?.email || 'desconhecido'})`,
+          updatedAt: serverTimestamp(),
+        });
+      });
       await batch.commit();
-      console.log(`[AUTO-EXPIRE] ${count} solicitações vencidas atualizadas.`);
     }
+    return expired.length;
   } catch (e) {
     console.error("[AUTO-EXPIRE] Erro:", e);
+    return 0;
   }
+};
+
+/** Desfaz um vencimento: volta para 'approved'. */
+export const reopenRequest = async (id: string) => {
+  await adminUpdateRequest(id, { status: 'approved', rejectionReason: null });
 };
 
 // ---------------------------------------------------------------------------
 // BUDGET AVAILABILITY CHECK
 // ---------------------------------------------------------------------------
 
+// Tudo que já consumiu verba: em execução, aguardando pagamento e pago.
+const BUDGET_STATUSES = ['approved', 'completed', 'paid'];
+
 export const checkBudgetAvailability = async (
   region: Region,
   month: string,
   requestValue: number
 ): Promise<{ allowed: boolean; message: string }> => {
+  const safeValue = Number(requestValue) || 0;
+  if (safeValue <= 0) return { allowed: true, message: "Sem valor a descontar do orçamento." };
+
   try {
     if (!month)  return { allowed: true, message: "Data indefinida, aprovação livre." };
     if (!region) return { allowed: true, message: "Região indefinida, aprovação livre." };
 
     const safeRegion = region.trim();
     const safeMonth  = month.trim();
-    const budgetId   = `${safeRegion}_${safeMonth}`;
 
-    // Run budget fetch and approved-requests fetch in parallel
-    const [budgetSnap, approvedSnap] = await Promise.all([
-      getDoc(doc(db, "budgets", budgetId)),
+    const [budgetSnap, usedSnap] = await Promise.all([
+      getDoc(doc(db, "budgets", `${safeRegion}_${safeMonth}`)),
       getDocs(query(
         collection(db, "requests"),
-        where("region",  "==", safeRegion),
-        where("status",  "==", "approved")
+        where("region", "==", safeRegion),
+        where("status", "in", BUDGET_STATUSES)
       ))
     ]);
 
@@ -215,29 +231,18 @@ export const checkBudgetAvailability = async (
     }
 
     const limit = Number(budgetSnap.data().limit) || 0;
+    const used = usedSnap.docs.reduce((sum, d) => {
+      const data = d.data() as TradeRequest;
+      return data.dateOfAction?.startsWith(safeMonth) ? sum + (Number(data.totalValue) || 0) : sum;
+    }, 0);
 
-    let used = 0;
-    approvedSnap.docs.forEach(d => {
-      try {
-        const data = d.data() as TradeRequest;
-        if (data.dateOfAction?.startsWith(safeMonth)) {
-          used += Number(data.totalValue) || 0;
-        }
-      } catch {
-        // ignore corrupted records
-      }
-    });
-
-    const safeValue = Number(requestValue) || 0;
-    const remaining = limit - used;
-
-    if (safeValue <= remaining) {
+    if (safeValue <= limit - used) {
       return { allowed: true, message: "Orçamento disponível." };
     }
 
     return {
       allowed: false,
-      message: `Estouro de Orçamento! Teto: R$${limit} | Usado: R$${used} | Solicitado: R$${safeValue}`
+      message: `Teto: R$ ${limit.toLocaleString('pt-BR')} · Já usado: R$ ${used.toLocaleString('pt-BR')} · Este pedido: R$ ${safeValue.toLocaleString('pt-BR')}`
     };
   } catch (error: any) {
     console.error("Erro no cálculo de orçamento:", error);

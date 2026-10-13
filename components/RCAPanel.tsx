@@ -4,7 +4,7 @@ import { TradeRequest, UserProfile } from '../types';
 import { getRequestByTradeCode } from '../services/tradeService';
 import { ExecutionView } from './ExecutionView';
 import { StatusBadge } from './shared/StatusBadge';
-import { FileText, AlertCircle, Clock, Search, FileSpreadsheet, Eye, Calendar } from 'lucide-react';
+import { FileText, AlertCircle, Search, FileSpreadsheet, Eye, Calendar } from 'lucide-react';
 import { useToast } from './shared/Toast';
 
 interface Props {
@@ -63,7 +63,7 @@ export const RCAPanel: React.FC<Props> = ({ user }) => {
     <div className="p-4 md:p-8 max-w-5xl mx-auto animate-in fade-in duration-500">
 
       {/* Hero Section */}
-      <div className="bg-gradient-to-r from-brand-purple to-purple-900 rounded-3xl p-6 md:p-8 text-white shadow-xl mb-10 flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-brand-purple to-purple-900 rounded-md p-6 md:p-8 text-white shadow-sm mb-10 flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
         <div className="text-center md:text-left relative z-10">
           <h1 className="text-2xl md:text-3xl font-extrabold mb-2">Reembolsos & Histórico</h1>
@@ -72,7 +72,7 @@ export const RCAPanel: React.FC<Props> = ({ user }) => {
       </div>
 
       {/* History Search Section */}
-      <div className="mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+      <div className="mb-8 bg-white p-6 rounded-md shadow-sm border border-gray-100">
         <div className="flex items-center gap-2 mb-4 text-gray-700">
           <Search className="text-purple-600" />
           <h2 className="text-lg font-bold">Localizar Solicitação</h2>
@@ -81,11 +81,11 @@ export const RCAPanel: React.FC<Props> = ({ user }) => {
           <input
             type="text"
             placeholder="Código da Ação (Ex: TJ-7KQ4M9X2PA)"
-            className="flex-1 border-2 border-gray-100 bg-gray-50 p-4 rounded-xl focus:ring-2 focus:ring-purple-600 focus:bg-white outline-none font-bold text-gray-700 transition"
+            className="flex-1 border-2 border-gray-100 bg-gray-50 p-4 rounded-md focus:ring-2 focus:ring-purple-600 focus:bg-white outline-none font-bold text-gray-700 transition"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
           />
-          <button type="submit" disabled={loadingSearch} className="bg-gray-900 text-white px-8 py-4 rounded-xl hover:bg-black transition font-bold flex items-center justify-center gap-2 disabled:opacity-60">
+          <button type="submit" disabled={loadingSearch} className="bg-gray-900 text-white px-8 py-4 rounded-md hover:bg-black transition font-bold flex items-center justify-center gap-2 disabled:opacity-60">
             <Search size={20} /> {loadingSearch ? 'Buscando...' : 'BUSCAR'}
           </button>
         </form>
@@ -94,11 +94,11 @@ export const RCAPanel: React.FC<Props> = ({ user }) => {
 
       <div className="grid gap-4">
         {!searched ? (
-          <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+          <div className="text-center py-12 bg-gray-50 rounded-md border border-dashed border-gray-300">
             <p className="text-gray-400">Utilize a busca acima para encontrar solicitações.</p>
           </div>
         ) : requests.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-2xl shadow-sm border border-gray-100">
+          <div className="text-center py-16 bg-white rounded-md shadow-sm border border-gray-100">
             <div className="text-gray-300 mb-4">
               <Search size={48} className="mx-auto" />
             </div>
@@ -106,7 +106,7 @@ export const RCAPanel: React.FC<Props> = ({ user }) => {
           </div>
         ) : (
           requests.map(req => (
-            <div key={req.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 transition-all duration-200 group relative overflow-hidden">
+            <div key={req.id} className="bg-white p-6 rounded-md shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 transition-all duration-200 group relative overflow-hidden">
               {/* Status Color Strip */}
               <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
                 req.status === 'paid'           ? 'bg-emerald-500' :
@@ -183,12 +183,12 @@ export const RCAPanel: React.FC<Props> = ({ user }) => {
                 </div>
 
                 <div className="flex flex-row md:flex-col items-center md:items-end gap-3 w-full md:w-auto justify-between md:justify-center">
-                  <StatusBadge status={req.status} variant="rca" />
+                  <StatusBadge status={req.status} variant="rca" requestType={req.requestType} />
 
                   {(req.status === 'approved' || req.status === 'completed') && !['personalizacao', 'evento', 'acao_social'].includes(req.requestType || '') && (
                     <button
                       onClick={() => handleOpenExecution(req)}
-                      className={`text-sm px-6 py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-sm font-bold w-full md:w-auto mt-2 md:mt-0 ${req.status === 'approved' ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-gray-800 text-white hover:bg-black'}`}
+                      className={`text-sm px-6 py-3 rounded-md transition flex items-center justify-center gap-2 shadow-sm font-bold w-full md:w-auto mt-2 md:mt-0 ${req.status === 'approved' ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-gray-800 text-white hover:bg-black'}`}
                     >
                       {req.status === 'approved' ? (
                         <><FileText size={16}/> Solicitar Reembolso</>

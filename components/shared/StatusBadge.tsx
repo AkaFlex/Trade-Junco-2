@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Clock, PlayCircle, XCircle, FileText, CheckCircle, Ban, ArchiveX, Check } from 'lucide-react';
+import { Clock, PlayCircle, XCircle, FileText, CheckCircle, Ban, ArchiveX, Check, Receipt } from 'lucide-react';
 
 type Variant = 'admin' | 'rca';
 
@@ -8,53 +7,48 @@ interface Props {
   status: string;
   variant?: Variant;
   overdue?: boolean;
+  /** Personalização/Evento/Ação Social não têm pagamento PIX: mudam os rótulos de completed/paid. */
+  requestType?: string;
 }
 
-/**
- * Shared StatusBadge component.
- * - variant="admin" (default): smaller, table-friendly style
- * - variant="rca": larger, card-friendly style with stronger paid badge
- * - overdue: appends a extra "Atrasado" chip next to the status badge
- */
-export const StatusBadge: React.FC<Props> = ({ status, variant = 'admin', overdue = false }) => {
-  const adminStyles: Record<string, string> = {
-    pending:       'bg-yellow-50 text-yellow-700 border-yellow-200 ring-1 ring-yellow-100',
-    approved:      'bg-blue-50 text-blue-700 border-blue-200 ring-1 ring-blue-100',
-    rejected:      'bg-red-50 text-red-700 border-red-200 ring-1 ring-red-100',
-    completed:     'bg-purple-50 text-purple-700 border-purple-200 ring-1 ring-purple-100',
-    paid:          'bg-emerald-50 text-emerald-700 border-emerald-200 ring-1 ring-emerald-100',
-    blocked_volume:'bg-gray-100 text-gray-600 border-gray-200 ring-1 ring-gray-100',
-    expired:       'bg-gray-700 text-white border-gray-600 ring-1 ring-gray-500',
-  };
+const EVENT_LIKE = ['personalizacao', 'evento', 'acao_social'];
 
-  const rcaStyles: Record<string, string> = {
-    pending:       'bg-yellow-50 text-yellow-700 border-yellow-200 ring-1 ring-yellow-100',
-    approved:      'bg-blue-50 text-blue-700 border-blue-200 ring-1 ring-blue-100',
-    rejected:      'bg-red-50 text-red-700 border-red-200 ring-1 ring-red-100',
-    completed:     'bg-purple-50 text-purple-700 border-purple-200 ring-1 ring-purple-100',
-    paid:          'bg-emerald-600 text-white border-emerald-700 shadow-md ring-1 ring-emerald-600',
-    blocked_volume:'bg-gray-100 text-gray-600 border-gray-200 ring-1 ring-gray-100',
-    expired:       'bg-gray-700 text-white border-gray-600 ring-1 ring-gray-500',
+export const StatusBadge: React.FC<Props> = ({ status, variant = 'admin', overdue = false, requestType }) => {
+  const eventLike = EVENT_LIKE.includes(requestType || '');
+
+  const styles: Record<string, string> = {
+    pending:        'bg-yellow-50 text-yellow-800 border-yellow-300',
+    approved:       'bg-blue-50 text-blue-text border-blue-junco/40',
+    rejected:       'bg-red-50 text-red-700 border-red-300',
+    completed:      'bg-purple-50 text-purple-junco border-purple-junco/40',
+    paid:           variant === 'rca' ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-emerald-50 text-emerald-700 border-emerald-300',
+    blocked_volume: 'bg-gray-100 text-gray-600 border-gray-300',
+    expired:        'bg-gray-700 text-white border-gray-700',
   };
 
   const labels: Record<string, React.ReactNode> = {
-    pending:       <><Clock size={14} className="mr-1.5"/> Aguardando Aprovação</>,
-    approved:      variant === 'admin'
-                     ? <><PlayCircle size={14} className="mr-1.5"/> Em Execução</>
-                     : <><CheckCircle size={14} className="mr-1.5"/> Aprovado</>,
-    rejected:      <><XCircle size={14} className="mr-1.5"/> Recusado</>,
-    completed:     <><FileText size={14} className="mr-1.5"/> Aguardando Pagamento</>,
-    paid:          variant === 'admin'
-                     ? <><CheckCircle size={14} className="mr-1.5"/> Pago / Finalizado</>
-                     : <><Check size={16} strokeWidth={3} className="mr-1.5"/> PAGO</>,
-    blocked_volume:<><Ban size={14} className="mr-1.5"/> Bloqueado (Volume)</>,
-    expired:       <><ArchiveX size={14} className="mr-1.5"/> {variant === 'rca' ? 'Prazo Expirado' : 'Vencido / Expirado'}</>,
+    pending:  <><Clock size={14} className="mr-1.5" /> Aguardando Aprovação</>,
+    approved: variant === 'admin'
+                ? <><PlayCircle size={14} className="mr-1.5" /> Em Execução</>
+                : <><CheckCircle size={14} className="mr-1.5" /> Aprovado</>,
+    rejected: <><XCircle size={14} className="mr-1.5" /> Recusado</>,
+    completed: eventLike
+                ? (variant === 'admin'
+                    ? <><Receipt size={14} className="mr-1.5" /> Aprovado · aguardando recibo</>
+                    : <><CheckCircle size={14} className="mr-1.5" /> Aprovado</>)
+                : <><FileText size={14} className="mr-1.5" /> Aguardando Pagamento</>,
+    paid: eventLike
+                ? <><CheckCircle size={14} className="mr-1.5" /> Concluído</>
+                : (variant === 'admin'
+                    ? <><CheckCircle size={14} className="mr-1.5" /> Pago / Finalizado</>
+                    : <><Check size={16} strokeWidth={3} className="mr-1.5" /> PAGO</>),
+    blocked_volume: <><Ban size={14} className="mr-1.5" /> Bloqueado (Volume)</>,
+    expired: <><ArchiveX size={14} className="mr-1.5" /> {variant === 'rca' ? 'Prazo Expirado' : 'Vencido / Expirado'}</>,
   };
 
-  const styles = variant === 'rca' ? rcaStyles : adminStyles;
   const baseClass = variant === 'rca'
-    ? 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border'
-    : 'inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold border whitespace-nowrap';
+    ? 'flex items-center px-3 py-1.5 rounded-md text-xs font-bold border'
+    : 'inline-flex items-center px-2.5 py-1 rounded text-xs font-bold border whitespace-nowrap';
 
   return (
     <span className="inline-flex items-center gap-1.5">
@@ -62,7 +56,7 @@ export const StatusBadge: React.FC<Props> = ({ status, variant = 'admin', overdu
         {labels[status] ?? status}
       </span>
       {overdue && (
-        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-bold bg-red-600 text-white whitespace-nowrap">
+        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-bold bg-red-600 text-white whitespace-nowrap">
           ⏰ Atrasado
         </span>
       )}

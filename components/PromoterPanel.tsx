@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { getRequestByTradeCode } from '../services/tradeService';
+import { getRequestByTradeCode, getRequestById } from '../services/tradeService';
 import { getProducts } from '../services/productsService';
 import { TradeRequest, SalesReport, ProductCount } from '../types';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
@@ -8,7 +8,7 @@ import { db } from '../firebaseConfig';
 import { Search, Store, Calendar, Save, CheckCircle, ArrowLeft, Lock, ListChecks, Loader2 } from 'lucide-react';
 import { useToast } from './shared/Toast';
 
-export const PromoterPanel: React.FC = () => {
+export const PromoterPanel: React.FC<{ initialCode?: string }> = ({ initialCode }) => {
   const toast = useToast();
 
   const [tradeCode, setTradeCode] = useState('');
@@ -24,11 +24,37 @@ export const PromoterPanel: React.FC = () => {
   const [productsLoading, setProductsLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // Persist trade code in localStorage
+  const searchCode = async (code: string) => {
+    if (!code.trim()) return;
+    setLoadingSearch(true);
+    localStorage.setItem('junco_promoter_tradecode', code.trim().toUpperCase());
+    try {
+        const data = await getRequestByTradeCode(code);
+        if (data && data.status !== 'approved') {
+           toast.warning("Esta solicitação não está em execução.", "O Sell-Out só pode ser enviado enquanto a ação estiver aprovada.");
+           setRequests([]);
+        } else {
+           setRequests(data ? [data] : []);
+        }
+    } catch (err) {
+        toast.error("Erro ao buscar a solicitação.");
+    } finally {
+        setSearched(true);
+        setSelectedRequest(null);
+        setLoadingSearch(false);
+    }
+  };
+
+  // Código vindo do link (#/sellout?code=...) tem prioridade sobre o último código usado.
   useEffect(() => {
+    if (initialCode) {
+      setTradeCode(initialCode.toUpperCase());
+      searchCode(initialCode);
+      return;
+    }
     const saved = localStorage.getItem('junco_promoter_tradecode');
     if (saved) setTradeCode(saved);
-  }, []);
+  }, [initialCode]);
 
   // Load the live product checklist from Firestore
   useEffect(() => {
@@ -59,25 +85,7 @@ export const PromoterPanel: React.FC = () => {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tradeCode.trim()) return;
-    setLoadingSearch(true);
-    localStorage.setItem('junco_promoter_tradecode', tradeCode.trim().toUpperCase());
-    
-    try {
-        const data = await getRequestByTradeCode(tradeCode.trim());
-        if (data && data.status !== 'approved') {
-           toast.warning("Esta solicitação não está mais no status Aprovado.", `Status atual: ${data.status}`);
-           setRequests([]);
-        } else {
-           setRequests(data ? [data] : []);
-        }
-    } catch (err) {
-        toast.error("Erro ao buscar a solicitação.");
-    } finally {
-        setSearched(true);
-        setSelectedRequest(null);
-        setLoadingSearch(false);
-    }
+    await searchCode(tradeCode);
   };
 
   const handleQtyChange = (idx: number, delta: number) => {
@@ -94,6 +102,21 @@ export const PromoterPanel: React.FC = () => {
     if (counts.length === 0) return toast.warning("Nenhum produto cadastrado.", "Contate o administrador.");
 
     setSubmitting(true);
+    // Confere o estado atual no servidor: outra aba/degustadora pode ter enviado relatórios.
+    const latest = await getRequestById(selectedRequest.id).catch(() => null);
+    if (latest) {
+      setSelectedRequest(latest);
+      setRequests(prev => prev.map(r => r.id === latest.id ? latest : r));
+      if (latest.status !== 'approved') {
+        setSubmitting(false);
+        return toast.warning("Esta ação não está mais em execução.");
+      }
+      if ((latest.salesReports?.length || 0) >= (latest.days || 1)) {
+        setSubmitting(false);
+        return toast.info("Todos os relatórios desta ação já foram enviados.");
+      }
+    }
+    const base = latest || selectedRequest;
     const newReport: SalesReport = {
       date: new Date().toISOString(),
       storeName: storeName.trim(),
@@ -106,8 +129,8 @@ export const PromoterPanel: React.FC = () => {
       await updateDoc(refDoc, { salesReports: arrayUnion(newReport) });
 
       const updatedReq = {
-        ...selectedRequest,
-        salesReports: [...(selectedRequest.salesReports || []), newReport]
+        ...base,
+        salesReports: [...(base.salesReports || []), newReport]
       };
 
       setSelectedRequest(updatedReq);
@@ -119,7 +142,7 @@ export const PromoterPanel: React.FC = () => {
       setCounts(prev => prev.map(c => ({ ...c, qty: 0 })));
 
       toast.success(
-        `Relatório ${reportStatus.current + 1}/${reportStatus.total} enviado!`,
+        `Relatório ${updatedReq.salesReports.length}/${updatedReq.days || 1} enviado!`,
         `Loja: ${newReport.storeName}`
       );
     } catch (e) {
@@ -148,7 +171,7 @@ export const PromoterPanel: React.FC = () => {
           <ArrowLeft size={20}/> Voltar para Busca
         </button>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
+        <div className="bg-white rounded-md shadow-sm border border-gray-100 p-6 mb-8">
           <div className="flex justify-between items-start">
             <div>
               <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-2">Relatório de Sell-Out</h2>
@@ -186,18 +209,18 @@ export const PromoterPanel: React.FC = () => {
         </div>
 
         {reportStatus.isComplete ? (
-          <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center mb-8 shadow-sm animate-in fade-in">
+          <div className="bg-green-50 border border-green-200 rounded-md p-8 text-center mb-8 shadow-sm animate-in fade-in">
             <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle size={32} className="text-green-600"/>
             </div>
             <h3 className="text-xl font-bold text-green-800 mb-2">Processo Finalizado</h3>
             <p className="text-green-700 mb-6">Todos os relatórios ({reportStatus.total} dias) foram enviados com sucesso.</p>
-            <button disabled className="bg-white text-gray-400 border border-gray-200 px-6 py-3 rounded-xl font-bold flex items-center gap-2 mx-auto cursor-not-allowed">
+            <button disabled className="bg-white text-gray-400 border border-gray-200 px-6 py-3 rounded-md font-bold flex items-center gap-2 mx-auto cursor-not-allowed">
               <Lock size={18}/> Ação Concluída
             </button>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-lg border border-pink-100 overflow-hidden animate-in fade-in">
+          <div className="bg-white rounded-md shadow-lg border border-pink-100 overflow-hidden animate-in fade-in">
             <div className="bg-pink-600 p-4 text-white font-bold text-lg flex items-center gap-2 justify-between">
               <div className="flex items-center gap-2"><Save size={20}/> Novo Relatório</div>
               <span className="text-xs bg-white/20 px-2 py-1 rounded">Relatório {reportStatus.current + 1} de {reportStatus.total}</span>
@@ -259,7 +282,7 @@ export const PromoterPanel: React.FC = () => {
               <button
                 onClick={submitReport}
                 disabled={submitting}
-                className="w-full bg-pink-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-pink-700 transition transform hover:-translate-y-1 disabled:opacity-50 disabled:translate-y-0 flex items-center justify-center gap-2"
+                className="w-full bg-pink-600 text-white py-4 rounded-md font-bold text-lg shadow-lg hover:bg-pink-700 transition transform hover:-translate-y-1 disabled:opacity-50 disabled:translate-y-0 flex items-center justify-center gap-2"
               >
                 {submitting ? <><Loader2 className="animate-spin" size={20}/> Enviando...</> : `SALVAR RELATÓRIO ${reportStatus.current + 1}`}
               </button>
@@ -273,7 +296,7 @@ export const PromoterPanel: React.FC = () => {
             <h3 className="font-bold text-gray-500 uppercase text-sm mb-4">Histórico de Envios</h3>
             <div className="space-y-3">
               {selectedRequest.salesReports.map((r, i) => (
-                <div key={i} className="bg-white p-4 rounded-xl border border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div key={i} className="bg-white p-4 rounded-md border border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
                   <div>
                     <div className="font-bold text-gray-800">{r.storeName}</div>
                     <div className="text-xs text-gray-500">Vendedor: {r.sellerName} • {formatDate(r.date)}</div>
@@ -293,16 +316,16 @@ export const PromoterPanel: React.FC = () => {
   // ---- SEARCH VIEW ----
   return (
     <div className="p-4 md:p-8 max-w-4xl mx-auto animate-in fade-in duration-500">
-      <div className="bg-pink-600 text-white p-6 md:p-8 rounded-3xl shadow-xl mb-8 relative overflow-hidden">
+      <div className="bg-pink-600 text-white p-6 md:p-8 rounded-md shadow-sm mb-8 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
         <h1 className="text-2xl md:text-3xl font-extrabold mb-2 relative z-10">Sell Out</h1>
         <p className="text-pink-100 relative z-10 text-sm md:text-base">Busque pelo Código da Ação para preencher seus relatórios de venda.</p>
       </div>
 
-      <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 mb-8">
+      <div className="bg-white p-4 md:p-6 rounded-md shadow-sm border border-gray-100 mb-8">
         <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4">
           <input
-            className="flex-1 border-2 border-gray-100 bg-gray-50 p-4 rounded-xl font-bold text-lg text-gray-700 uppercase placeholder-gray-400 focus:border-pink-500 focus:bg-white outline-none transition"
+            className="flex-1 border-2 border-gray-100 bg-gray-50 p-4 rounded-md font-bold text-lg text-gray-700 uppercase placeholder-gray-400 focus:border-pink-500 focus:bg-white outline-none transition"
             placeholder="Ex: TJ-A1B2C3"
             value={tradeCode}
             onChange={e => setTradeCode(e.target.value)}
@@ -310,7 +333,7 @@ export const PromoterPanel: React.FC = () => {
           <button
             type="submit"
             disabled={loadingSearch}
-            className="bg-gray-900 text-white p-4 md:px-8 rounded-xl font-bold hover:bg-black transition flex items-center justify-center gap-2 disabled:opacity-60"
+            className="bg-gray-900 text-white p-4 md:px-8 rounded-md font-bold hover:bg-black transition flex items-center justify-center gap-2 disabled:opacity-60"
           >
             {loadingSearch ? <Loader2 className="animate-spin" size={20}/> : <Search size={20}/>} BUSCAR
           </button>
@@ -321,14 +344,14 @@ export const PromoterPanel: React.FC = () => {
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
           <h3 className="font-bold text-gray-400 uppercase text-xs tracking-wider">Ações Encontradas</h3>
           {requests.length === 0 ? (
-            <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-300 text-gray-400">
+            <div className="text-center py-12 bg-gray-50 rounded-md border border-dashed border-gray-300 text-gray-400">
               Nenhuma solicitação encontrada com este código, ou ela não está mais aprovada.
             </div>
           ) : (
             requests.map(req => {
               const status = getReportStatus(req);
               return (
-                <div key={req.id} className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:justify-between md:items-center gap-4 group hover:border-pink-200 transition">
+                <div key={req.id} className="bg-white p-4 md:p-6 rounded-md shadow-sm border border-gray-100 flex flex-col md:flex-row md:justify-between md:items-center gap-4 group hover:border-pink-200 transition">
                   <div>
                     <div className="font-black text-lg md:text-xl text-brand-red mb-1">{req.tradeCode || 'S/ Código'}</div>
                     <div className="font-bold text-gray-800 mb-2">{req.region} • Parc: {req.partnerCode}</div>
@@ -338,13 +361,13 @@ export const PromoterPanel: React.FC = () => {
                     </div>
                   </div>
                   {status.isComplete ? (
-                    <button disabled className="bg-green-100 text-green-700 px-6 py-4 rounded-xl font-bold cursor-not-allowed flex items-center justify-center gap-2 w-full md:w-auto">
+                    <button disabled className="bg-green-100 text-green-700 px-6 py-4 rounded-md font-bold cursor-not-allowed flex items-center justify-center gap-2 w-full md:w-auto">
                       <CheckCircle size={18}/> CONCLUÍDO
                     </button>
                   ) : (
                     <button
                       onClick={() => setSelectedRequest(req)}
-                      className="bg-pink-50 text-pink-600 px-6 py-4 rounded-xl font-bold hover:bg-pink-600 hover:text-white transition shadow-sm flex items-center justify-center gap-2 w-full md:w-auto"
+                      className="bg-pink-50 text-pink-600 px-6 py-4 rounded-md font-bold hover:bg-pink-600 hover:text-white transition shadow-sm flex items-center justify-center gap-2 w-full md:w-auto"
                     >
                       <ListChecks size={18}/> PREENCHER ({status.current}/{status.total})
                     </button>

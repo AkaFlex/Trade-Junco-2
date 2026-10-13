@@ -1,5 +1,5 @@
 
-export type UserRole = 'admin' | 'rca' | 'promoter';
+export type UserRole = 'admin' | 'rca';
 
 export interface UserProfile {
   uid: string;
@@ -40,6 +40,22 @@ export interface SalesReport {
   sellerName: string; // Changed from sellerCode to sellerName
   products: ProductCount[];
 }
+
+export const STORE_LOCATIONS = [
+  'Entrada',
+  'Corredor de bebidas',
+  'Próximo ao caixa',
+  'Meio de loja',
+  'Fundo / estoque',
+] as const;
+export type StoreLocation = typeof STORE_LOCATIONS[number];
+
+export const FOOT_TRAFFIC_OPTIONS = [
+  'Um dos corredores mais movimentados da loja',
+  'Fluxo médio',
+  'Pouco movimento',
+] as const;
+export type FootTraffic = typeof FOOT_TRAFFIC_OPTIONS[number];
 
 export interface TradeRequest {
   id: string;
@@ -94,6 +110,8 @@ export interface TradeRequest {
   spacePhotoUrl?: string;
   spacePhotoUrls?: string[];
   adminAssignedSupplier?: string;
+  storeLocation?: StoreLocation;   // localização do espaço dentro da loja
+  footTraffic?: FootTraffic;       // fluxo de pessoas no espaço
 
   // Events Module fields ('evento' | 'acao_social')
   institutionName?: string;         // Eventos: Nome da Instituição/Empresa solicitante

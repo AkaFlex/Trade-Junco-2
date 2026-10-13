@@ -4,7 +4,9 @@ import { TradeRequest } from '../types';
 import { doc, updateDoc, arrayUnion, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { savePaymentInfo } from '../services/tradeService';
-import { Camera, ArrowLeft, UploadCloud, CheckCircle, Clock, Image as ImageIcon, Lock, Wallet, User, AlertTriangle } from 'lucide-react';
+import { uploadFiles, acceptAttr } from '../services/uploadService';
+import { useToast } from './shared/Toast';
+import { Camera, ArrowLeft, UploadCloud, CheckCircle, Clock, Image as ImageIcon, Lock, Wallet } from 'lucide-react';
 
 interface Props {
   request: TradeRequest;
@@ -26,7 +28,8 @@ export const ExecutionView: React.FC<Props> = ({ request: initialRequest, onBack
   const [uploadedPhotos, setUploadedPhotos] = useState<string[]>(initialRequest.photoUrls || (initialRequest.photoUrl ? [initialRequest.photoUrl] : []));
   const [uploadedReceipts, setUploadedReceipts] = useState<string[]>(initialRequest.receiptUrls || (initialRequest.receiptUrl ? [initialRequest.receiptUrl] : []));
 
-  const isReadOnly = request.status === 'completed' || request.status === 'paid';
+  const toast = useToast();
+  const isReadOnly = request.status !== 'approved';
 
   useEffect(() => {
     const fetchLatest = async () => {
@@ -71,87 +74,51 @@ export const ExecutionView: React.FC<Props> = ({ request: initialRequest, onBack
     setPixData({...pixData, cpf: v});
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'photo' | 'receipt') => {
-    if (isReadOnly) return;
-    if (!e.target.files || e.target.files.length === 0) return;
-    
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'photo' | 'receipt') => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (isReadOnly || files.length === 0) return;
+
     setUploading(true);
     setUploadProgress(0);
+    try {
+      const { urls, failures } = await uploadFiles(
+        files,
+        type === 'photo' ? 'reembolso-fotos' : 'reembolso-notas',
+        type === 'photo' ? ['image'] : ['image', 'pdf'],
+        (done, total) => setUploadProgress(total ? (done / total) * 100 : 100),
+      );
 
-    const files: File[] = Array.from(e.target.files);
-    let completed = 0;
-    const total = files.length;
-    const uploadedUrls: string[] = [];
-
-    files.forEach(file => {
-        const formData = new FormData();
-        formData.append('image', file);
-        formData.append('key', 'c761300e7b06cd74bcb411a077aa2abe'); 
-
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', 'https://api.imgbb.com/1/upload');
-
-        xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable && total === 1) {
-                const p = (event.loaded / event.total) * 100;
-                setUploadProgress(p);
-            }
-        };
-
-        xhr.onload = async () => {
-            if (xhr.status === 200) {
-                try {
-                    const response = JSON.parse(xhr.responseText);
-                    const url = response.data.url;
-                    uploadedUrls.push(url);
-                    
-                    const field = type === 'photo' ? 'photoUrls' : 'receiptUrls';
-                    await updateDoc(doc(db, "requests", request.id), { 
-                        [field]: arrayUnion(url) 
-                    });
-
-                    completed++;
-                    setUploadProgress((completed / total) * 100);
-
-                    if (completed === total) {
-                         if (type === 'photo') {
-                             setUploadedPhotos(prev => [...prev, ...uploadedUrls]);
-                         } else {
-                             setUploadedReceipts(prev => [...prev, ...uploadedUrls]);
-                         }
-                         setUploading(false);
-                         alert(`${total} arquivo(s) enviado(s) com sucesso!`);
-                    }
-
-                } catch (err: any) {
-                    console.error("Erro processamento", err);
-                }
-            } else {
-                console.error("Erro upload", xhr.responseText);
-                completed++;
-                if (completed === total) setUploading(false);
-            }
-        };
-
-        xhr.onerror = () => {
-            alert("Erro de conexão.");
-            completed++;
-            if (completed === total) setUploading(false);
-        };
-
-        xhr.send(formData);
-    });
+      if (urls.length) {
+        const field = type === 'photo' ? 'photoUrls' : 'receiptUrls';
+        await updateDoc(doc(db, "requests", request.id), { [field]: arrayUnion(...urls) });
+        if (type === 'photo') setUploadedPhotos(prev => [...prev, ...urls]);
+        else setUploadedReceipts(prev => [...prev, ...urls]);
+        toast.success(`${urls.length} arquivo(s) enviado(s)!`);
+      }
+      failures.forEach(f => toast.error('Arquivo não enviado', f.reason));
+    } catch (err: any) {
+      toast.error('Erro ao salvar os arquivos.', err?.message);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const finishRequest = async () => {
     const hasPhoto = uploadedPhotos.length > 0;
     const hasReceipt = uploadedReceipts.length > 0;
 
-    if (!hasPhoto) return alert("Erro: Pelo menos uma Foto da Ação é obrigatória.");
-    if (!hasReceipt) return alert("Erro: Pelo menos um Comprovante/Nota Fiscal é obrigatório.");
-    if (!pixData.key) return alert("Preencha a chave PIX.");
-    if (!pixData.holder) return alert("Preencha o titular do PIX.");
-    if (!pixData.cpf) return alert("Preencha o CPF do titular.");
+    if (!hasPhoto) return toast.warning("Pelo menos uma Foto da Ação é obrigatória.");
+    if (!hasReceipt) return toast.warning("Pelo menos um Comprovante/Nota Fiscal é obrigatório.");
+    if (!pixData.key) return toast.warning("Preencha a chave PIX.");
+    if (!pixData.holder) return toast.warning("Preencha o titular do PIX.");
+    if (!pixData.cpf) return toast.warning("Preencha o CPF do titular.");
+
+    const latest = await getDoc(doc(db, "requests", request.id)).catch(() => null);
+    if (latest?.exists() && latest.data().status !== 'approved') {
+      setRequest({ id: latest.id, ...latest.data() } as TradeRequest);
+      return toast.error("Esta solicitação não está mais em execução.", "Ela pode ter vencido ou sido alterada pelo gestor.");
+    }
 
     const payment = { pixKey: pixData.key, pixHolder: pixData.holder, pixCpf: pixData.cpf };
     try {
@@ -162,10 +129,10 @@ export const ExecutionView: React.FC<Props> = ({ request: initialRequest, onBack
             await updateDoc(doc(db, "requests", request.id), payment);
         }
         await updateDoc(doc(db, "requests", request.id), { status: 'completed' });
-        alert("Solicitação finalizada! Aguardando pagamento pelo setor financeiro.");
+        toast.success("Solicitação finalizada!", "Aguardando pagamento pelo setor financeiro.");
         onBack();
     } catch (e) {
-        alert("Erro ao finalizar solicitação.");
+        toast.error("Erro ao finalizar solicitação.");
     }
   };
 
@@ -194,10 +161,21 @@ export const ExecutionView: React.FC<Props> = ({ request: initialRequest, onBack
             <div className="flex items-center gap-3">
               <CheckCircle className="text-yellow-600 shrink-0" size={24} />
               <div>
-                <p className="text-yellow-800 font-bold">Solicitação Finalizada</p>
-                <p className="text-yellow-700 text-sm">
-                    Você já enviou todos os dados. O processo está agora aguardando pagamento pelo setor financeiro.
-                </p>
+                {request.status === 'completed' || request.status === 'paid' ? (
+                  <>
+                    <p className="text-yellow-800 font-bold">Solicitação Finalizada</p>
+                    <p className="text-yellow-700 text-sm">
+                        Você já enviou todos os dados. O processo está agora aguardando pagamento pelo setor financeiro.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-yellow-800 font-bold">Reembolso indisponível</p>
+                    <p className="text-yellow-700 text-sm">
+                        Esta solicitação não está em execução{request.rejectionReason ? `: ${request.rejectionReason}` : '.'} Fale com o gestor de Trade.
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -210,7 +188,7 @@ export const ExecutionView: React.FC<Props> = ({ request: initialRequest, onBack
           
           {/* Read Only view of Sell-Out Reports */}
           {currentReports.length > 0 && (
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+              <div className="bg-white p-6 rounded-md shadow-sm border border-gray-100">
                   <h4 className="font-bold text-gray-700 mb-3 border-b pb-2 flex items-center gap-2">
                       <CheckCircle size={18} className="text-green-600"/>
                       Relatórios de Sell-Out da Degustadora
@@ -233,13 +211,13 @@ export const ExecutionView: React.FC<Props> = ({ request: initialRequest, onBack
               <div className="bg-blue-100 p-2 rounded-full text-blue-600 shrink-0"><Clock size={20}/></div>
               <div>
                   <p className="text-blue-800 text-sm font-medium leading-relaxed">
-                     Preencha os dados PIX para reembolso e anexe as fotos (JPG/PNG). 
+                     Preencha os dados PIX para reembolso, anexe as fotos da ação e as notas fiscais (imagem ou PDF). 
                      Você pode selecionar várias fotos de uma vez.
                   </p>
               </div>
           </div>
 
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="bg-white p-6 rounded-md shadow-sm border border-gray-100">
               <h3 className="font-bold text-gray-800 mb-4 uppercase text-sm flex items-center gap-2">
                   <Wallet size={16}/> Dados Bancários (Para Reembolso)
               </h3>
@@ -279,7 +257,7 @@ export const ExecutionView: React.FC<Props> = ({ request: initialRequest, onBack
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* PHOTOS UPLOAD */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 border-dashed relative">
+              <div className="bg-white p-6 rounded-md shadow-sm border border-gray-100 border-dashed relative">
                   <div className="text-center">
                       <div className="bg-gray-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 text-gray-500">
                           <Camera size={24} />
@@ -316,13 +294,13 @@ export const ExecutionView: React.FC<Props> = ({ request: initialRequest, onBack
               </div>
 
               {/* RECEIPTS UPLOAD */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 border-dashed relative">
+              <div className="bg-white p-6 rounded-md shadow-sm border border-gray-100 border-dashed relative">
                   <div className="text-center">
                       <div className="bg-gray-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 text-gray-500">
                           <UploadCloud size={24} />
                       </div>
                       <h4 className="font-bold text-gray-700">Comprovante</h4>
-                      <p className="text-xs text-gray-400 mb-4">Notas Fiscais de custos</p>
+                      <p className="text-xs text-gray-400 mb-4">Notas Fiscais de custos (imagem ou PDF)</p>
                       
                       {!isReadOnly && (
                           <label className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-bold cursor-pointer transition text-sm inline-block w-full">
@@ -330,7 +308,7 @@ export const ExecutionView: React.FC<Props> = ({ request: initialRequest, onBack
                               <input 
                                 type="file" 
                                 className="hidden" 
-                                accept="image/*" 
+                                accept={acceptAttr(['image', 'pdf'])} 
                                 multiple
                                 onChange={(e) => handleFileUpload(e, 'receipt')}
                               />
@@ -354,7 +332,7 @@ export const ExecutionView: React.FC<Props> = ({ request: initialRequest, onBack
           </div>
 
           {uploading && (
-              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+              <div className="bg-white p-4 rounded-md shadow-sm border border-gray-100">
                   <div className="flex justify-between text-xs font-bold text-gray-500 mb-1">
                       <span>Enviando arquivos...</span>
                       <span>{uploadProgress.toFixed(0)}%</span>
@@ -366,14 +344,14 @@ export const ExecutionView: React.FC<Props> = ({ request: initialRequest, onBack
           )}
 
           {isReadOnly ? (
-              <div className="w-full bg-green-50 text-green-700 py-4 rounded-xl font-bold text-lg text-center border border-green-200">
+              <div className="w-full bg-green-50 text-green-700 py-4 rounded-md font-bold text-lg text-center border border-green-200">
                   SOLICITAÇÃO ENVIADA COM SUCESSO
               </div>
           ) : (
               <button 
                 onClick={finishRequest}
                 disabled={uploading}
-                className="w-full bg-brand-red text-white py-4 rounded-xl font-bold text-lg shadow-xl hover:bg-red-800 transition transform hover:-translate-y-1 disabled:opacity-50 disabled:translate-y-0"
+                className="w-full bg-brand-red text-white py-4 rounded-md font-bold text-lg shadow-sm hover:bg-red-800 transition transform hover:-translate-y-1 disabled:opacity-50 disabled:translate-y-0"
               >
                   FINALIZAR E PEDIR PAGAMENTO
               </button>

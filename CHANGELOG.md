@@ -11,8 +11,25 @@ N1 Crítica · N2 Maior · N3 Menor · N4 Correção · N5 Documentação
 
 ---
 
+## [2.1.0] – 2026-10-13 · N2 Maior
+**Deploy:** pendente (aguarda confirmação) · **Autor:** Mateus Silva (com Claude)
+**Resumo:**
+- **Painel do gestor redesenhado** (pedido da usuária): de 9 abas para 4 – Visão Geral, Solicitações (lista única com **busca global** em todas as situações + filtros por situação e tipo), Financeiro (degustações a pagar + Personalização/Evento/Ação Social "aguardando recibo", com "Anexar recibo e concluir") e Configurações (Orçamentos e Produtos). Botão **Reabrir** para vencidos.
+- **Personalização** (pedido da usuária): novos campos *Localização na loja* e *Fluxo de pessoas* (escolha única), mínimo de **2 fotos**, rótulos "Categoria de Produtos no Espaço" e "fornecedor de comunicação visual".
+- **Vencimento** passa a ser por prazo (fim da ação + 10 dias sem reembolso), não mais pela virada do mês; datas sempre no fuso local.
+- **Uploads** unificados no Cloudinary com validação de tipo/tamanho (ImgBB removido); comprovante de reembolso aceita **PDF**; falha de um arquivo não trava mais a tela.
+- Eventos/Ação Social pedem **e-mail** e **região**; orçamento não é checado para itens de valor zero; orçamento soma aprovado + aguardando pagamento + pago, por mês da ação.
+- Dias de ação limitados a 1–5 inteiros; Sell-Out confere no servidor o limite de relatórios.
+- **Padrão Junco (P2/P3):** modal de confirmação e seletor personalizados (sem `alert/confirm/<select>` nativos), Tailwind compilado (sem CDN), fontes Barlow, paleta/raios/toast navy, barra superior navy.
+- **Rotas** no endereço (`#/sellout?code=...`): F5 e Voltar funcionam; botão "Copiar link do Sell-Out" para a degustadora. Telas pesadas carregadas sob demanda (bundle inicial 1,19 MB → 659 KB).
+- Registro de exportações/backups (coleção `logs`), aviso para conta sem perfil de gestor, acessibilidade básica (rótulos, Esc, `role=dialog`, carrossel pausável), TypeScript `strict`, `npm ci` no CI, README novo.
+**Arquivos:** components/admin/* (novos: shared, csv, budget, OverviewTab, RequestsTab, FinanceTab, SettingsTab, RequestDetailsModal), AdminPanel.tsx, CustomizationWizard.tsx, EventsWizard.tsx, RequestWizard.tsx, ExecutionView.tsx, PromoterPanel.tsx, RCAPanel.tsx, TradeShowcase.tsx, HomeMenu.tsx, App.tsx, shared/ConfirmModal.tsx, shared/OptionSelect.tsx, shared/StatusBadge.tsx, shared/Toast.tsx, services/uploadService.ts (substitui eventAttachmentService.ts), services/showcaseService.ts, services/tradeService.ts, services/maintenanceService.ts, utils/date.ts, utils/route.ts, config.ts, types.ts, firestore.rules, index.html, index.css, index.tsx, tailwind.config.js, postcss.config.js, tsconfig.json, package.json, package-lock.json, .github/workflows/deploy.yml, public/favicon.png, firebaseConfig.ts, README.md
+**Impacto em dados:** Sim – novos campos `storeLocation` e `footTraffic` em personalizações; nova coleção `logs`; vencimento automático grava motivo com a data-limite e `updatedBy`. Nenhum dado existente é alterado.
+**Testes feitos:** `tsc --strict` e `vite build` ok; navegador: home, Personalização (campos novos, seletor, mínimo de fotos), link do Sell-Out com código, Voltar/F5, painel sem login; abas Solicitações/Financeiro e modal de confirmação renderizados com dados fictícios (sem gravar em produção). Upload Cloudinary já validado em 2026-09-23.
+**Pendências/Riscos:** colar o `firestore.rules` atualizado no console (exige 2 fotos na personalização, coleção `logs`). Painel com login real precisa ser conferido pelo gestor.
+
 ## [2.0.0] – 2026-10-13 · N1 Crítica
-**Deploy:** pendente (aguarda confirmação + backup) · **Autor:** Mateus Silva (com Claude)
+**Deploy:** commit 9277b93 (2026-10-13) · **Autor:** Mateus Silva (com Claude)
 **Resumo:** fechamento do banco sem exigir login do RCA. Regras do Firestore reescritas: listagem de `requests` só para o gestor; criação validada (dias 1–5, valor = dias × 150, antecedência, campos proibidos); alteração pública limitada a "+1 relatório de Sell-Out", anexos e finalização do reembolso; `showcase` versionado; lista de gestores corrigida (`sousa`). Acesso público passa a ser só por código: novo índice `codes/{código}` e código TJ de 10 caracteres gerado com `crypto`. PIX/CPF movidos para `requests/{id}/private/payment` (leitura só do gestor). Escritas do gestor gravam `updatedBy/updatedAt`. "Minhas Solicitações" busca só por código. Botões novos no painel: **Backup** (JSON) e **Migrar segurança**.
 **Arquivos:** firestore.rules, types.ts, services/tradeService.ts, services/tradeCode.ts (novo), services/maintenanceService.ts (novo), components/AdminPanel.tsx, RCAPanel.tsx, ExecutionView.tsx, RequestWizard.tsx, CustomizationWizard.tsx, EventsWizard.tsx
 **Impacto em dados:** Sim – nova coleção `codes`; subcoleção `requests/{id}/private/payment`; campos `pixKey/pixHolder/pixCpf` saem do documento principal (após "Migrar segurança"); novos campos `createdAtServer`, `updatedBy`, `updatedAt`; e-mail do RCA gravado em minúsculas.

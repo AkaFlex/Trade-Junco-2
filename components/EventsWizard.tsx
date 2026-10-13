@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { UserProfile, REGIONS } from '../types';
 import { createRequest } from '../services/tradeService';
 import { generateTradeCode } from '../services/tradeCode';
-import { uploadEventAttachment } from '../services/eventAttachmentService';
+import { uploadFile, validateFile, acceptAttr } from '../services/uploadService';
+import { OptionSelect } from './shared/OptionSelect';
+import { Region } from '../types';
 import { PartyPopper, HeartHandshake, User, Phone, Building2, Calendar, Clock, MapPin, Users, FileText, Paperclip, CheckCircle, Copy, Loader2, X, ArrowRight } from 'lucide-react';
 import { useToast } from './shared/Toast';
 
@@ -13,6 +15,8 @@ interface Props {
 }
 
 type SubType = 'evento' | 'acao_social';
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => {
   const toast = useToast();
@@ -25,7 +29,9 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
 
   const [formData, setFormData] = useState({
     solicitante: '',
+    email: '',
     contatoTratativas: '',
+    region: '' as Region | '',
     institutionName: '',
     eventCategory: 'esportivo' as 'esportivo' | 'comercial',
     dataEvento: '',
@@ -49,16 +55,19 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'mediaKitUrl' | 'actionOfficeUrl') => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file || !subType) return;
+    const invalid = validateFile(file, ['image', 'pdf', 'doc']);
+    if (invalid) return toast.warning('Arquivo não aceito', invalid);
     setUploading(true);
     try {
-      const url = await uploadEventAttachment(file, subType);
+      const url = await uploadFile(file, subType);
       setFormData(prev => ({ ...prev, [field]: url }));
       setAttachmentName(file.name);
       toast.success('Anexo enviado!');
     } catch (err) {
       console.error(err);
-      toast.error('Erro ao enviar anexo.');
+      toast.error('Erro ao enviar anexo.', (err as Error)?.message);
     } finally {
       setUploading(false);
     }
@@ -75,7 +84,9 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
 
   const missingRequired =
     !formData.solicitante.trim() ||
+    !EMAIL_RE.test(formData.email.trim()) ||
     !formData.contatoTratativas.trim() ||
+    !formData.region ||
     !formData.dataEvento.trim() ||
     !formData.eventTime.trim() ||
     !formData.eventLocation.trim() ||
@@ -88,7 +99,9 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
   const handleCreate = async () => {
     if (!subType) return;
     if (!formData.solicitante.trim()) return toast.warning("Solicitante é obrigatório.");
+    if (!EMAIL_RE.test(formData.email.trim())) return toast.warning("Informe um e-mail válido para retorno.");
     if (!formData.contatoTratativas.trim()) return toast.warning("Contato para tratativas é obrigatório.");
+    if (!formData.region) return toast.warning("Selecione a região.");
     if (!formData.dataEvento.trim()) return toast.warning("Dia do Evento é obrigatório.");
     if (!formData.eventTime.trim()) return toast.warning("Horário do evento é obrigatório.");
     if (!formData.eventLocation.trim()) return toast.warning("Local do evento é obrigatório.");
@@ -115,10 +128,10 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
         requestType: subType,
         tradeCode,
         rcaName: formData.solicitante,
-        rcaEmail: '',
+        rcaEmail: formData.email.trim().toLowerCase(),
         rcaPhone: formData.contatoTratativas,
         partnerCode: isEvento ? (formData.institutionName || '—') : '—',
-        region: REGIONS[0],
+        region: formData.region,
         dateOfAction: formData.dataEvento,
         days: 1,
         totalValue: 0,
@@ -155,7 +168,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-2xl max-w-4xl mx-auto overflow-hidden my-4 z-50">
+    <div className="bg-white rounded-md shadow-sm max-w-4xl mx-auto overflow-hidden my-4 z-50">
       <div className="bg-amber-600 p-4 text-white flex justify-between items-center">
         <h2 className="font-bold text-lg flex items-center gap-2"><PartyPopper size={20}/> Solicitação de Eventos</h2>
         {step !== 3 && <button onClick={onCancel} className="text-white/80 hover:text-white font-bold">FECHAR</button>}
@@ -170,9 +183,9 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
             <div className="grid md:grid-cols-2 gap-6">
               <button
                 onClick={() => chooseSubType('evento')}
-                className="bg-white border-2 border-transparent hover:border-amber-500 p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all group flex flex-col items-center text-center"
+                className="bg-white border-2 border-transparent hover:border-amber-500 p-8 rounded-md shadow-sm hover:shadow-sm transition-all group flex flex-col items-center text-center"
               >
-                <div className="bg-amber-50 text-amber-600 p-5 rounded-2xl mb-4 group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                <div className="bg-amber-50 text-amber-600 p-5 rounded-md mb-4 group-hover:bg-amber-500 group-hover:text-white transition-colors">
                   <PartyPopper size={36}/>
                 </div>
                 <h3 className="text-lg font-bold text-gray-800 mb-2">Eventos</h3>
@@ -184,9 +197,9 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
 
               <button
                 onClick={() => chooseSubType('acao_social')}
-                className="bg-white border-2 border-transparent hover:border-emerald-500 p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all group flex flex-col items-center text-center"
+                className="bg-white border-2 border-transparent hover:border-emerald-500 p-8 rounded-md shadow-sm hover:shadow-sm transition-all group flex flex-col items-center text-center"
               >
-                <div className="bg-emerald-50 text-emerald-600 p-5 rounded-2xl mb-4 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                <div className="bg-emerald-50 text-emerald-600 p-5 rounded-md mb-4 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
                   <HeartHandshake size={36}/>
                 </div>
                 <h3 className="text-lg font-bold text-gray-800 mb-2">Ação Social</h3>
@@ -205,7 +218,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
             <button onClick={() => setStep(1)} className="text-xs font-bold text-gray-400 hover:text-gray-600">&larr; Trocar tipo de solicitação</button>
 
             {/* Solicitante / Contato */}
-            <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
+            <div className="bg-gray-50 p-5 rounded-md border border-gray-100">
               <h3 className="text-sm font-bold text-gray-500 uppercase mb-4 flex items-center gap-2">
                 <User size={16}/> Dados do Solicitante
               </h3>
@@ -217,6 +230,27 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
                     value={formData.solicitante}
                     onChange={e => setFormData({ ...formData, solicitante: e.target.value })}
                     placeholder="Nome de quem está solicitando"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="ev-email" className="block text-xs font-bold text-gray-400 uppercase mb-1">E-mail *</label>
+                  <input
+                    id="ev-email"
+                    type="email"
+                    className="w-full bg-white border border-gray-200 p-2.5 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                    value={formData.email}
+                    onChange={e => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="email@empresa.com.br"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="ev-region" className="block text-xs font-bold text-gray-400 uppercase mb-1">Região *</label>
+                  <OptionSelect
+                    id="ev-region"
+                    value={formData.region}
+                    options={REGIONS}
+                    onChange={region => setFormData({ ...formData, region })}
+                    placeholder="Selecione a região"
                   />
                 </div>
                 <div>
@@ -240,7 +274,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
                 <div className="relative">
                   <Building2 size={18} className="absolute left-3 top-3.5 text-gray-400"/>
                   <input
-                    className="w-full bg-white border border-gray-200 p-3 pl-10 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
+                    className="w-full bg-white border border-gray-200 p-3 pl-10 rounded-md focus:ring-2 focus:ring-amber-500 outline-none"
                     value={formData.institutionName}
                     onChange={e => setFormData({ ...formData, institutionName: e.target.value })}
                     placeholder="Ex: Prefeitura de..., Empresa X"
@@ -258,7 +292,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
                       key={c}
                       type="button"
                       onClick={() => setFormData({ ...formData, eventCategory: c })}
-                      className={`flex-1 px-4 py-3 rounded-xl font-bold text-sm border transition ${formData.eventCategory === c ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-500 border-gray-200'}`}
+                      className={`flex-1 px-4 py-3 rounded-md font-bold text-sm border transition ${formData.eventCategory === c ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-500 border-gray-200'}`}
                     >
                       {c === 'esportivo' ? 'Evento Esportivo' : 'Evento Comercial'}
                     </button>
@@ -276,7 +310,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
                       key={v}
                       type="button"
                       onClick={() => setFormData({ ...formData, seasonalDate: v })}
-                      className={`flex-1 px-4 py-3 rounded-xl font-bold text-sm border transition ${formData.seasonalDate === v ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-gray-500 border-gray-200'}`}
+                      className={`flex-1 px-4 py-3 rounded-md font-bold text-sm border transition ${formData.seasonalDate === v ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-gray-500 border-gray-200'}`}
                     >
                       {v === 'sim' ? 'SIM' : 'NÃO'}
                     </button>
@@ -284,7 +318,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
                 </div>
                 {formData.seasonalDate === 'sim' && (
                   <input
-                    className="w-full bg-white border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                    className="w-full bg-white border border-gray-200 p-3 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none"
                     value={formData.seasonalDateDescription}
                     onChange={e => setFormData({ ...formData, seasonalDateDescription: e.target.value })}
                     placeholder="Qual data sazonal? Ex: Natal, Páscoa, Dia das Crianças..."
@@ -300,7 +334,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
                   <Calendar size={18} className="absolute left-3 top-3.5 text-gray-400"/>
                   <input
                     type="date"
-                    className="w-full bg-white border border-gray-200 p-3 pl-10 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
+                    className="w-full bg-white border border-gray-200 p-3 pl-10 rounded-md focus:ring-2 focus:ring-amber-500 outline-none"
                     value={formData.dataEvento}
                     onChange={e => setFormData({ ...formData, dataEvento: e.target.value })}
                   />
@@ -311,7 +345,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
                 <div className="relative">
                   <Clock size={18} className="absolute left-3 top-3.5 text-gray-400"/>
                   <input
-                    className="w-full bg-white border border-gray-200 p-3 pl-10 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
+                    className="w-full bg-white border border-gray-200 p-3 pl-10 rounded-md focus:ring-2 focus:ring-amber-500 outline-none"
                     value={formData.eventTime}
                     onChange={e => setFormData({ ...formData, eventTime: e.target.value })}
                     placeholder="Ex: 14h às 18h"
@@ -323,7 +357,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
                 <div className="relative">
                   <MapPin size={18} className="absolute left-3 top-3.5 text-gray-400"/>
                   <input
-                    className="w-full bg-white border border-gray-200 p-3 pl-10 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
+                    className="w-full bg-white border border-gray-200 p-3 pl-10 rounded-md focus:ring-2 focus:ring-amber-500 outline-none"
                     value={formData.eventLocation}
                     onChange={e => setFormData({ ...formData, eventLocation: e.target.value })}
                     placeholder="Endereço ou nome do local"
@@ -338,7 +372,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
                 <div className="relative">
                   <Users size={18} className="absolute left-3 top-3.5 text-gray-400"/>
                   <input
-                    className="w-full bg-white border border-gray-200 p-3 pl-10 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
+                    className="w-full bg-white border border-gray-200 p-3 pl-10 rounded-md focus:ring-2 focus:ring-amber-500 outline-none"
                     value={formData.expectedAudience}
                     onChange={e => setFormData({ ...formData, expectedAudience: e.target.value })}
                     placeholder="Ex: 500 pessoas"
@@ -353,7 +387,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Quantidade de itens *</label>
                   <input
                     type="number"
-                    className="w-full bg-white border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                    className="w-full bg-white border border-gray-200 p-3 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none"
                     value={formData.itemQuantity}
                     onChange={e => setFormData({ ...formData, itemQuantity: e.target.value })}
                     placeholder="Ex: 100"
@@ -362,7 +396,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Produto desejado *</label>
                   <input
-                    className="w-full bg-white border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                    className="w-full bg-white border border-gray-200 p-3 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none"
                     value={formData.desiredProduct}
                     onChange={e => setFormData({ ...formData, desiredProduct: e.target.value })}
                     placeholder="Ex: Doces, balas, granolas..."
@@ -374,7 +408,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Finalidade do Evento *</label>
               <textarea
-                className="w-full bg-white border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none min-h-[80px]"
+                className="w-full bg-white border border-gray-200 p-3 rounded-md focus:ring-2 focus:ring-amber-500 outline-none min-h-[80px]"
                 value={formData.eventPurpose}
                 onChange={e => setFormData({ ...formData, eventPurpose: e.target.value })}
                 placeholder="Qual o objetivo do evento/ação?"
@@ -385,7 +419,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Como seria a participação da Junco no evento? *</label>
                 <textarea
-                  className="w-full bg-white border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none min-h-[80px]"
+                  className="w-full bg-white border border-gray-200 p-3 rounded-md focus:ring-2 focus:ring-amber-500 outline-none min-h-[80px]"
                   value={formData.juncoParticipation}
                   onChange={e => setFormData({ ...formData, juncoParticipation: e.target.value })}
                   placeholder="Descreva a participação esperada"
@@ -393,7 +427,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
               </div>
             )}
 
-            <div className={`border-t pt-6 p-6 rounded-2xl mb-2 ${isEvento ? 'bg-amber-50 border-amber-100' : 'bg-emerald-50 border-emerald-100'}`}>
+            <div className={`border-t pt-6 p-6 rounded-md mb-2 ${isEvento ? 'bg-amber-50 border-amber-100' : 'bg-emerald-50 border-emerald-100'}`}>
               <h3 className={`font-black mb-2 flex items-center gap-2 ${isEvento ? 'text-amber-900' : 'text-emerald-900'}`}>
                 <Paperclip/> {isEvento ? 'Mídia Kit do Evento *' : 'Ofício da Ação *'}
               </h3>
@@ -402,17 +436,17 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
               </p>
 
               {attachmentUrl ? (
-                <div className="flex items-center justify-between bg-white border border-gray-200 p-3 rounded-xl">
+                <div className="flex items-center justify-between bg-white border border-gray-200 p-3 rounded-md">
                   <span className="text-sm font-medium text-gray-700 truncate flex items-center gap-2"><FileText size={16}/> {attachmentName || 'Anexo enviado'}</span>
                   <button onClick={() => removeAttachment(isEvento ? 'mediaKitUrl' : 'actionOfficeUrl')} className="text-gray-400 hover:text-red-500 p-1">
                     <X size={16}/>
                   </button>
                 </div>
               ) : (
-                <label className={`flex items-center justify-center gap-2 border-2 border-dashed rounded-xl p-6 cursor-pointer transition ${uploading ? 'bg-gray-100 border-gray-300' : 'bg-white hover:bg-gray-50 border-gray-300'}`}>
+                <label className={`flex items-center justify-center gap-2 border-2 border-dashed rounded-md p-6 cursor-pointer transition ${uploading ? 'bg-gray-100 border-gray-300' : 'bg-white hover:bg-gray-50 border-gray-300'}`}>
                   <input
                     type="file"
-                    accept="application/pdf,image/*,.doc,.docx"
+                    accept={acceptAttr(['image', 'pdf', 'doc'])}
                     onChange={e => handleFileUpload(e, isEvento ? 'mediaKitUrl' : 'actionOfficeUrl')}
                     className="hidden"
                     disabled={uploading}
@@ -426,7 +460,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
             <button
               onClick={handleCreate}
               disabled={loading || uploading || missingRequired}
-              className={`w-full text-white py-4 rounded-xl font-bold text-xl shadow-xl transition transform hover:-translate-y-1 disabled:opacity-50 disabled:translate-y-0 disabled:hover:translate-y-0 ${isEvento ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+              className={`w-full text-white py-4 rounded-md font-bold text-xl shadow-sm transition transform hover:-translate-y-1 disabled:opacity-50 disabled:translate-y-0 disabled:hover:translate-y-0 ${isEvento ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
             >
               {loading ? "Processando..." : "ENVIAR SOLICITAÇÃO"}
             </button>
@@ -444,7 +478,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
               A solicitação entrará para a pauta de análises do setor. Guarde o código gerado para acompanhar o progresso (Aprovado/Recusado) no seu painel.
             </p>
 
-            <div className="bg-gray-50 border border-gray-200 p-6 rounded-xl max-w-sm mx-auto mb-8">
+            <div className="bg-gray-50 border border-gray-200 p-6 rounded-md max-w-sm mx-auto mb-8">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Código Único</p>
               <div className="flex items-center justify-center gap-3">
                 <span className="text-4xl font-black text-amber-600 tracking-widest">{generatedCode}</span>
@@ -463,7 +497,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
 
             <button
               onClick={() => onSuccess(generatedCode)}
-              className="bg-gray-800 text-white px-8 py-4 rounded-xl font-bold hover:bg-black transition shadow-lg w-full md:w-auto"
+              className="bg-gray-800 text-white px-8 py-4 rounded-md font-bold hover:bg-black transition shadow-lg w-full md:w-auto"
             >
               VOLTAR AO INÍCIO
             </button>

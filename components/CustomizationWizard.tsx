@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
-import { UserProfile, REGIONS } from '../types';
+import { UserProfile, REGIONS, STORE_LOCATIONS, FOOT_TRAFFIC_OPTIONS, StoreLocation, FootTraffic, Region } from '../types';
+import { OptionSelect, OptionButtons } from './shared/OptionSelect';
+import { MIN_CUSTOMIZATION_PHOTOS } from '../config';
 import { createRequest } from '../services/tradeService';
 import { generateTradeCode } from '../services/tradeCode';
-import { AlertCircle, User, Phone, Store, CheckCircle, Copy, FileImage, ShieldAlert, Palette, MapPin, X, Loader2, PlusCircle, Eye } from 'lucide-react';
+import { uploadFiles } from '../services/uploadService';
+import { todayLocal } from '../utils/date';
+import { User, Store, MapPin, CheckCircle, Copy, FileImage, ShieldAlert, Palette, X, Loader2, PlusCircle } from 'lucide-react';
 import { useToast } from './shared/Toast';
 
 interface Props {
@@ -36,17 +40,18 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
   const [hasJuncoProducts, setHasJuncoProducts] = useState<'pending' | 'yes' | 'no'>('pending');
 
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
 
   const [formData, setFormData] = useState({
     rcaName: '',
     rcaEmail: '',
     rcaPhone: '',
     partnerCode: '',
-    region: REGIONS[0],
+    region: '' as Region | '',
     city: '',
-    customizationSpace: CUSTOMIZATION_SPACES[0],
-    brandCategory: BRAND_CATEGORIES[0],
+    customizationSpace: '',
+    brandCategory: '',
+    storeLocation: '' as StoreLocation | '',
+    footTraffic: '' as FootTraffic | '',
     supplierIndication: '',
     spacePhotoUrls: [] as string[]
   });
@@ -58,54 +63,22 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
     setFormData({ ...formData, rcaPhone: value });
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-    
-    const files = Array.from(e.target.files);
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (files.length === 0) return;
+
     setUploading(true);
-    setUploadProgress(0);
-
-    let uploadedCount = 0;
-    const totalFiles = files.length;
-
-    files.forEach(file => {
-      const formDataUpload = new FormData();
-      formDataUpload.append('image', file);
-      formDataUpload.append('key', 'c761300e7b06cd74bcb411a077aa2abe'); 
-
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', 'https://api.imgbb.com/1/upload');
-
-      xhr.onload = () => {
-          if (xhr.status === 200) {
-              try {
-                  const response = JSON.parse(xhr.responseText);
-                  setFormData(prev => ({ 
-                    ...prev, 
-                    spacePhotoUrls: [...prev.spacePhotoUrls, response.data.url] 
-                  }));
-                  toast.success('Imagem anexada!');
-              } catch {
-                  toast.error("Erro ao processar imagem.");
-              }
-          } else {
-              toast.error("Falha no upload.");
-          }
-          uploadedCount++;
-          if (uploadedCount === totalFiles) {
-              setUploading(false);
-              setUploadProgress(0);
-          }
-      };
-
-      xhr.onerror = () => {
-          toast.error("Erro de rede.");
-          uploadedCount++;
-          if (uploadedCount === totalFiles) setUploading(false);
-      };
-
-      xhr.send(formDataUpload);
-    });
+    try {
+      const { urls, failures } = await uploadFiles(files, 'personalizacao', ['image']);
+      if (urls.length) {
+        setFormData(prev => ({ ...prev, spacePhotoUrls: [...prev.spacePhotoUrls, ...urls] }));
+        toast.success(`${urls.length} foto(s) anexada(s)!`);
+      }
+      failures.forEach(f => toast.error('Foto não enviada', f.reason));
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleCreate = async () => {
@@ -115,7 +88,12 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
     if (!formData.rcaPhone.trim()) return toast.warning("Telefone do RCA é obrigatório.");
     if (!formData.partnerCode.trim()) return toast.warning("Código do Parceiro é obrigatório.");
     if (!formData.city.trim()) return toast.warning("A Cidade é obrigatória para personalização.");
-    if (formData.spacePhotoUrls.length === 0) return toast.warning("Ao menos uma foto do local é obrigatória.");
+    if (!formData.region) return toast.warning("Selecione a Regional.");
+    if (!formData.customizationSpace) return toast.warning("Selecione o espaço a ser personalizado.");
+    if (!formData.brandCategory) return toast.warning("Selecione a categoria de produtos no espaço.");
+    if (!formData.storeLocation) return toast.warning("Selecione a localização do espaço dentro da loja.");
+    if (!formData.footTraffic) return toast.warning("Selecione o fluxo de pessoas no espaço.");
+    if (formData.spacePhotoUrls.length < MIN_CUSTOMIZATION_PHOTOS) return toast.warning(`Envie no mínimo ${MIN_CUSTOMIZATION_PHOTOS} fotos do espaço.`);
     
     setLoading(true);
     try {
@@ -131,7 +109,7 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
         partnerCode: formData.partnerCode,
         region: formData.region,
         city: formData.city,
-        dateOfAction: new Date().toISOString().split('T')[0], // Não tem data programada exigida
+        dateOfAction: todayLocal(), // Não tem data programada exigida
         days: 1, // Irrelevante para personalização
         totalValue: 0, // Sem pagamento
         status: 'pending' as const,
@@ -139,6 +117,8 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
         // Novos Campos
         customizationSpace: formData.customizationSpace,
         brandCategory: formData.brandCategory,
+        storeLocation: formData.storeLocation,
+        footTraffic: formData.footTraffic,
         supplierIndication: formData.supplierIndication,
         spacePhotoUrls: formData.spacePhotoUrls
       };
@@ -155,7 +135,7 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-2xl max-w-4xl mx-auto overflow-hidden my-4 z-50">
+    <div className="bg-white rounded-md shadow-sm max-w-4xl mx-auto overflow-hidden my-4 z-50">
       <div className="bg-brand-purple p-4 text-white flex justify-between items-center">
         <h2 className="font-bold text-lg flex items-center gap-2"><Palette size={20}/> Solicitação de Personalização</h2>
         {step !== 3 && <button onClick={onCancel} className="text-white/80 hover:text-white font-bold">FECHAR</button>}
@@ -167,20 +147,20 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
         {step === 1 && (
           <div className="text-center space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <h2 className="text-xl md:text-2xl font-bold text-gray-800">Pré-Requisito de Personalização</h2>
-            <div className="bg-purple-50 p-6 rounded-2xl max-w-xl mx-auto border border-purple-100">
+            <div className="bg-purple-50 p-6 rounded-md max-w-xl mx-auto border border-purple-100">
                 <p className="text-lg md:text-xl font-medium text-purple-900 mb-6">
                     O espaço que você deseja personalizar já está abastecido com mercadorias da Junco?
                 </p>
                 <div className="flex justify-center gap-4">
                   <button 
                     onClick={() => setHasJuncoProducts('no')}
-                    className={`px-8 py-3 rounded-xl font-bold transition text-lg w-32 ${hasJuncoProducts === 'no' ? 'bg-red-600 text-white' : 'bg-white border text-gray-500'}`}
+                    className={`px-8 py-3 rounded-md font-bold transition text-lg w-32 ${hasJuncoProducts === 'no' ? 'bg-red-600 text-white' : 'bg-white border text-gray-500'}`}
                   >
                     NÃO
                   </button>
                   <button 
                     onClick={() => { setHasJuncoProducts('yes'); setStep(2); }}
-                    className="bg-purple-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-purple-700 shadow-md text-lg w-32 transition"
+                    className="bg-purple-600 text-white px-8 py-3 rounded-md font-bold hover:bg-purple-700 shadow-md text-lg w-32 transition"
                   >
                     SIM
                   </button>
@@ -188,7 +168,7 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
             </div>
 
             {hasJuncoProducts === 'no' && (
-              <div className="bg-red-50 border-x-4 border-red-500 p-6 text-left rounded-xl shadow-sm max-w-xl mx-auto animate-in zoom-in-95 mt-6">
+              <div className="bg-red-50 border-x-4 border-red-500 p-6 text-left rounded-md shadow-sm max-w-xl mx-auto animate-in zoom-in-95 mt-6">
                 <div className="flex items-start gap-4">
                   <ShieldAlert className="text-red-600 shrink-0 w-8 h-8 mt-1" />
                   <div>
@@ -210,7 +190,7 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
         {step === 2 && (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
             {/* RCA Identity */}
-            <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
+            <div className="bg-gray-50 p-5 rounded-md border border-gray-100">
                 <h3 className="text-sm font-bold text-gray-500 uppercase mb-4 flex items-center gap-2">
                     <User size={16}/> Dados do Solicitante
                 </h3>
@@ -254,7 +234,7 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
                   <div className="relative">
                       <Store size={18} className="absolute left-3 top-3.5 text-gray-400"/>
                       <input 
-                        className="w-full bg-white border border-gray-200 p-3 pl-10 rounded-xl focus:ring-2 focus:ring-brand-purple outline-none text-lg font-bold text-gray-800"
+                        className="w-full bg-white border border-gray-200 p-3 pl-10 rounded-md focus:ring-2 focus:ring-brand-purple outline-none text-lg font-bold text-gray-800"
                         value={formData.partnerCode}
                         onChange={e => setFormData({...formData, partnerCode: e.target.value.replace(/\D/g, '')})}
                         placeholder="Ex: 12345"
@@ -266,7 +246,7 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
                   <div className="relative">
                       <MapPin size={18} className="absolute left-3 top-3.5 text-gray-400"/>
                       <input 
-                        className="w-full bg-white border border-gray-200 p-3 pl-10 rounded-xl focus:ring-2 focus:ring-brand-purple outline-none font-medium text-gray-800"
+                        className="w-full bg-white border border-gray-200 p-3 pl-10 rounded-md focus:ring-2 focus:ring-brand-purple outline-none font-medium text-gray-800"
                         value={formData.city}
                         onChange={e => setFormData({...formData, city: e.target.value})}
                         placeholder="Nome da Cidade"
@@ -274,75 +254,71 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
                   </div>
                </div>
                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Região *</label>
-                  <div className="relative">
-                      <MapPin size={18} className="absolute left-3 top-3.5 text-gray-400"/>
-                      <select 
-                        className="w-full bg-white border border-gray-200 p-3 pl-10 rounded-xl focus:ring-2 focus:ring-brand-purple outline-none font-medium"
-                        value={formData.region}
-                        onChange={e => setFormData({...formData, region: e.target.value as any})}
-                      >
-                        {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                  </div>
+                  <label htmlFor="cz-region" className="block text-xs font-bold text-gray-500 uppercase mb-2">Regional *</label>
+                  <OptionSelect id="cz-region" value={formData.region} options={REGIONS} placeholder="Selecione a regional"
+                    onChange={region => setFormData({ ...formData, region })} />
                </div>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Qual o Espaço a ser Personalizado? *</label>
-                  <select 
-                    className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-brand-purple outline-none font-medium text-gray-800"
-                    value={formData.customizationSpace}
-                    onChange={e => setFormData({...formData, customizationSpace: e.target.value})}
-                  >
-                    {CUSTOMIZATION_SPACES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  <label htmlFor="cz-space" className="block text-xs font-bold text-gray-500 uppercase mb-2">Qual o Espaço a ser Personalizado? *</label>
+                  <OptionSelect id="cz-space" value={formData.customizationSpace} options={CUSTOMIZATION_SPACES} placeholder="Selecione o espaço"
+                    onChange={customizationSpace => setFormData({ ...formData, customizationSpace })} />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Qual Categoria da Solicitação? *</label>
-                  <select 
-                    className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-brand-purple outline-none font-medium text-gray-800"
-                    value={formData.brandCategory}
-                    onChange={e => setFormData({...formData, brandCategory: e.target.value})}
-                  >
-                    {BRAND_CATEGORIES.map(b => <option key={b} value={b}>{b}</option>)}
-                  </select>
+                  <label htmlFor="cz-category" className="block text-xs font-bold text-gray-500 uppercase mb-2">Qual Categoria de Produtos no Espaço? *</label>
+                  <OptionSelect id="cz-category" value={formData.brandCategory} options={BRAND_CATEGORIES} placeholder="Selecione a categoria"
+                    onChange={brandCategory => setFormData({ ...formData, brandCategory })} />
                 </div>
             </div>
 
+            <div>
+                <span id="cz-location" className="block text-xs font-bold text-gray-500 uppercase mb-2">Localização do espaço dentro da loja *</span>
+                <OptionButtons ariaLabel="Localização do espaço dentro da loja" value={formData.storeLocation} options={STORE_LOCATIONS}
+                  onChange={storeLocation => setFormData({ ...formData, storeLocation })} />
+            </div>
+
+            <div>
+                <span className="block text-xs font-bold text-gray-500 uppercase mb-2">Fluxo de pessoas no espaço *</span>
+                <OptionButtons ariaLabel="Fluxo de pessoas no espaço" value={formData.footTraffic} options={FOOT_TRAFFIC_OPTIONS}
+                  onChange={footTraffic => setFormData({ ...formData, footTraffic })} />
+            </div>
+
             <div className="border-t border-gray-100 pt-6">
-                <label className="block text-sm font-bold text-gray-700 mb-2">Indicação de Fornecedor / Gráfica Local (Opcional)</label>
-                <p className="text-xs text-gray-500 mb-2">Tem algum fornecedor de confiança na cidade da loja que realize o serviço e possamos contatar?</p>
+                <label htmlFor="cz-supplier" className="block text-sm font-bold text-gray-700 mb-2">Indicação de fornecedor de comunicação visual (opcional)</label>
+                <p className="text-xs text-gray-500 mb-2">Tem algum fornecedor de comunicação visual de confiança na cidade da loja que possamos contatar?</p>
                 <input 
-                  className="w-full bg-white border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-brand-purple outline-none"
+                  id="cz-supplier"
+                  className="w-full bg-white border border-gray-200 p-3 rounded-md focus:ring-2 focus:ring-brand-purple outline-none"
                   value={formData.supplierIndication}
                   onChange={e => setFormData({...formData, supplierIndication: e.target.value})}
                   placeholder="Nome, Telefone ou Sem indicação"
                 />
             </div>
 
-            <div className="border-t border-purple-100 pt-6 bg-purple-50 p-6 rounded-2xl mb-8">
-                <h3 className="font-black text-purple-900 mb-2 flex items-center gap-2"><FileImage/> Fotos do Local a ser Personalizado *</h3>
-                <p className="text-sm text-purple-700 mb-4">Envie uma ou mais fotos claras que demonstrem como o espaço da Junco está posicionado hoje ou a fachada da loja.</p>
+            <div className="border-t border-purple-100 pt-6 bg-purple-50 p-6 rounded-md mb-8">
+                <h3 className="font-black text-purple-900 mb-2 flex items-center gap-2"><FileImage/> Fotos do Espaço * <span className="text-xs font-bold text-purple-700">({formData.spacePhotoUrls.length}/{MIN_CUSTOMIZATION_PHOTOS} mínimo)</span></h3>
+                <p className="text-sm text-purple-700 mb-4">Envie no mínimo {MIN_CUSTOMIZATION_PHOTOS} fotos claras do espaço a ser personalizado (como está hoje e a visão geral do local).</p>
                 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-4">
                   {formData.spacePhotoUrls.map((url, idx) => (
                     <div key={idx} className="relative group aspect-square">
-                      <img src={url} alt={`Local ${idx + 1}`} className="w-full h-full object-cover rounded-xl border-2 border-white shadow-sm" />
+                      <img src={url} alt={`Local ${idx + 1}`} className="w-full h-full object-cover rounded-md border-2 border-white shadow-sm" />
                       <button 
                         onClick={() => setFormData({
                           ...formData, 
                           spacePhotoUrls: formData.spacePhotoUrls.filter((_, i) => i !== idx)
                         })} 
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition"
+                        aria-label={`Remover foto ${idx + 1}`}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 transition"
                       >
                         <X size={14}/>
                       </button>
                     </div>
                   ))}
                   
-                  <label className={`aspect-square flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl transition cursor-pointer ${uploading ? 'bg-gray-100 border-gray-300' : 'bg-white border-purple-300 hover:bg-purple-100 hover:border-purple-500 text-purple-700'}`}>
+                  <label className={`aspect-square flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-md transition cursor-pointer ${uploading ? 'bg-gray-100 border-gray-300' : 'bg-white border-purple-300 hover:bg-purple-100 hover:border-purple-500 text-purple-700'}`}>
                     <input type="file" accept="image/*" multiple onChange={handleFileUpload} className="hidden" disabled={uploading} />
                     {uploading ? (
                       <div className="animate-spin text-purple-600"><Loader2 size={24}/></div>
@@ -355,19 +331,14 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
                   </label>
                 </div>
 
-                {uploading && (
-                  <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2 overflow-hidden">
-                    <div className="bg-purple-500 h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
-                  </div>
-                )}
             </div>
 
             <button 
               onClick={handleCreate}
-              disabled={loading || uploading || formData.spacePhotoUrls.length === 0}
-              className="w-full bg-brand-purple text-white py-4 rounded-xl font-bold text-xl shadow-xl hover:bg-purple-900 transition transform hover:-translate-y-1 disabled:opacity-50 disabled:translate-y-0 disabled:hover:translate-y-0"
+              disabled={loading || uploading || formData.spacePhotoUrls.length < MIN_CUSTOMIZATION_PHOTOS}
+              className="w-full bg-brand-purple text-white py-4 rounded-md font-bold text-xl shadow-sm hover:bg-purple-900 transition transform hover:-translate-y-1 disabled:opacity-50 disabled:translate-y-0 disabled:hover:translate-y-0"
             >
-              {loading ? "Processando..." : "ENVIAR SOLICITAÇÃO D/ PERSONALIZAÇÃO"}
+              {loading ? "Processando..." : "ENVIAR SOLICITAÇÃO DE PERSONALIZAÇÃO"}
             </button>
           </div>
         )}
@@ -383,7 +354,7 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
               A personalização entrará para a pauta de análises do setor. Guarde o ID gerado para acompanhar o progresso (Aprovado/Recusado) no seu painel.
             </p>
             
-            <div className="bg-gray-50 border border-gray-200 p-6 rounded-xl max-w-sm mx-auto mb-8">
+            <div className="bg-gray-50 border border-gray-200 p-6 rounded-md max-w-sm mx-auto mb-8">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Código Único</p>
               <div className="flex items-center justify-center gap-3">
                 <span className="text-4xl font-black text-brand-purple tracking-widest">{generatedCode}</span>
@@ -402,7 +373,7 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
 
             <button 
               onClick={() => onSuccess(generatedCode)} 
-              className="bg-gray-800 text-white px-8 py-4 rounded-xl font-bold hover:bg-black transition shadow-lg w-full md:w-auto"
+              className="bg-gray-800 text-white px-8 py-4 rounded-md font-bold hover:bg-black transition shadow-lg w-full md:w-auto"
             >
               VOLTAR AO INÍCIO
             </button>

@@ -23,10 +23,10 @@ export const HomeMenu: React.FC<Props> = ({ user, onNavigate }) => {
         {/* OPÇÃO 1 */}
         <button
           onClick={() => onNavigate('request')}
-          className="bg-white border-2 border-transparent hover:border-brand-red p-8 rounded-3xl shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col items-center text-center transform hover:-translate-y-2 relative overflow-hidden"
+          className="bg-white border-2 border-transparent hover:border-brand-red p-8 rounded-md shadow-sm hover:shadow-sm transition-all duration-300 group flex flex-col items-center text-center transform hover:-translate-y-2 relative overflow-hidden"
         >
           <div className="absolute top-0 right-0 w-32 h-32 bg-brand-red/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150"></div>
-          <div className="bg-red-50 text-brand-red p-5 rounded-2xl mb-6 group-hover:bg-brand-red group-hover:text-white transition-colors relative z-10">
+          <div className="bg-red-50 text-brand-red p-5 rounded-md mb-6 group-hover:bg-brand-red group-hover:text-white transition-colors relative z-10">
             <PlusCircle size={40} />
           </div>
           <h2 className="text-xl font-bold text-gray-800 mb-3 relative z-10">Solicitar Degustação</h2>
@@ -41,10 +41,10 @@ export const HomeMenu: React.FC<Props> = ({ user, onNavigate }) => {
         {/* OPÇÃO 2 */}
         <button
           onClick={() => onNavigate('sellout')}
-          className="bg-white border-2 border-transparent hover:border-pink-500 p-8 rounded-3xl shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col items-center text-center transform hover:-translate-y-2 relative overflow-hidden"
+          className="bg-white border-2 border-transparent hover:border-pink-500 p-8 rounded-md shadow-sm hover:shadow-sm transition-all duration-300 group flex flex-col items-center text-center transform hover:-translate-y-2 relative overflow-hidden"
         >
           <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150"></div>
-          <div className="bg-pink-50 text-pink-600 p-5 rounded-2xl mb-6 group-hover:bg-pink-500 group-hover:text-white transition-colors relative z-10">
+          <div className="bg-pink-50 text-pink-600 p-5 rounded-md mb-6 group-hover:bg-pink-500 group-hover:text-white transition-colors relative z-10">
             <ShoppingBag size={40} />
           </div>
           <h2 className="text-xl font-bold text-gray-800 mb-3 relative z-10">Sell Out (Relatório)</h2>
@@ -59,10 +59,10 @@ export const HomeMenu: React.FC<Props> = ({ user, onNavigate }) => {
         {/* OPÇÃO 3 */}
         <button
           onClick={() => onNavigate('reimbursement')}
-          className="bg-white border-2 border-transparent hover:border-purple-600 p-8 rounded-3xl shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col items-center text-center transform hover:-translate-y-2 relative overflow-hidden"
+          className="bg-white border-2 border-transparent hover:border-purple-600 p-8 rounded-md shadow-sm hover:shadow-sm transition-all duration-300 group flex flex-col items-center text-center transform hover:-translate-y-2 relative overflow-hidden"
         >
           <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150"></div>
-          <div className="bg-purple-50 text-purple-600 p-5 rounded-2xl mb-6 group-hover:bg-purple-600 group-hover:text-white transition-colors relative z-10">
+          <div className="bg-purple-50 text-purple-600 p-5 rounded-md mb-6 group-hover:bg-purple-600 group-hover:text-white transition-colors relative z-10">
             <DollarSign size={40} />
           </div>
           <h2 className="text-xl font-bold text-gray-800 mb-3 relative z-10">Minhas Solicitações</h2>
@@ -77,10 +77,10 @@ export const HomeMenu: React.FC<Props> = ({ user, onNavigate }) => {
         {/* OPÇÃO 4 */}
         <button
           onClick={() => onNavigate('customization')}
-          className="bg-white border-2 border-transparent hover:border-brand-purple p-8 rounded-3xl shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col items-center text-center transform hover:-translate-y-2 relative overflow-hidden"
+          className="bg-white border-2 border-transparent hover:border-brand-purple p-8 rounded-md shadow-sm hover:shadow-sm transition-all duration-300 group flex flex-col items-center text-center transform hover:-translate-y-2 relative overflow-hidden"
         >
           <div className="absolute top-0 right-0 w-32 h-32 bg-brand-purple/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150"></div>
-          <div className="bg-purple-50 text-brand-purple p-5 rounded-2xl mb-6 group-hover:bg-brand-purple group-hover:text-white transition-colors relative z-10">
+          <div className="bg-purple-50 text-brand-purple p-5 rounded-md mb-6 group-hover:bg-brand-purple group-hover:text-white transition-colors relative z-10">
             <Star size={40} />
           </div>
           <h2 className="text-xl font-bold text-gray-800 mb-3 relative z-10">Solicitar Personalização</h2>
@@ -95,10 +95,10 @@ export const HomeMenu: React.FC<Props> = ({ user, onNavigate }) => {
         {/* OPÇÃO 5 */}
         <button
           onClick={() => onNavigate('events')}
-          className="bg-white border-2 border-transparent hover:border-amber-500 p-8 rounded-3xl shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col items-center text-center transform hover:-translate-y-2 relative overflow-hidden"
+          className="bg-white border-2 border-transparent hover:border-amber-500 p-8 rounded-md shadow-sm hover:shadow-sm transition-all duration-300 group flex flex-col items-center text-center transform hover:-translate-y-2 relative overflow-hidden"
         >
           <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150"></div>
-          <div className="bg-amber-50 text-amber-600 p-5 rounded-2xl mb-6 group-hover:bg-amber-500 group-hover:text-white transition-colors relative z-10">
+          <div className="bg-amber-50 text-amber-600 p-5 rounded-md mb-6 group-hover:bg-amber-500 group-hover:text-white transition-colors relative z-10">
             <PartyPopper size={40} />
           </div>
           <h2 className="text-xl font-bold text-gray-800 mb-3 relative z-10">Solicitação de Eventos</h2>
@@ -115,7 +115,7 @@ export const HomeMenu: React.FC<Props> = ({ user, onNavigate }) => {
         <div className="flex justify-center border-t border-gray-200 pt-8 mt-4">
           <button
             onClick={() => onNavigate('admin')}
-            className="flex items-center gap-3 bg-gray-900 text-white px-8 py-4 rounded-2xl hover:bg-black transition-all shadow-lg transform hover:-translate-y-1 font-bold"
+            className="flex items-center gap-3 bg-gray-900 text-white px-8 py-4 rounded-md hover:bg-black transition-all shadow-lg transform hover:-translate-y-1 font-bold"
           >
             <ShieldAlert size={20} className="text-brand-purple" />
             ACESSAR PAINEL GESTOR (ADMINISTRADOR)
@@ -124,7 +124,7 @@ export const HomeMenu: React.FC<Props> = ({ user, onNavigate }) => {
       )}
       </div>
 
-      <div className="w-full relative mt-4 shadow-[0_0_40px_rgba(0,0,0,0.1)]">
+      <div className="w-full relative mt-4">
         <TradeShowcase user={user} />
       </div>
     </div>

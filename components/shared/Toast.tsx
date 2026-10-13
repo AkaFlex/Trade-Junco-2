@@ -41,10 +41,10 @@ export const useToast = (): ToastContextValue => {
 // Single Toast Item
 // ------------------------------------------------------------------
 const ICONS: Record<ToastType, React.ReactNode> = {
-  success: <CheckCircle size={20} className="text-emerald-500 shrink-0" />,
-  error:   <XCircle     size={20} className="text-red-500 shrink-0" />,
-  warning: <AlertTriangle size={20} className="text-yellow-500 shrink-0" />,
-  info:    <Info        size={20} className="text-blue-500 shrink-0" />,
+  success: <CheckCircle size={20} className="text-green-junco shrink-0" />,
+  error:   <XCircle     size={20} className="text-red-400 shrink-0" />,
+  warning: <AlertTriangle size={20} className="text-yellow-junco shrink-0" />,
+  info:    <Info        size={20} className="text-blue-junco shrink-0" />,
 };
 
 const BORDER: Record<ToastType, string> = {
@@ -78,7 +78,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
   return (
     <div
       className={`
-        flex items-start gap-3 bg-white rounded-xl shadow-2xl border border-gray-100 border-l-4 ${BORDER[toast.type]}
+        flex items-start gap-3 bg-navy text-white rounded-[5px] shadow-modal border-l-4 ${BORDER[toast.type]}
         p-4 w-80 max-w-[calc(100vw-2rem)] pointer-events-auto
         transition-all duration-350
         ${visible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}
@@ -86,14 +86,15 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
     >
       {ICONS[toast.type]}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold text-gray-800 leading-tight">{toast.title}</p>
+        <p className="text-sm font-condensed font-semibold tracking-wide leading-tight">{toast.title}</p>
         {toast.message && (
-          <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{toast.message}</p>
+          <p className="text-xs text-white/80 mt-0.5 leading-relaxed">{toast.message}</p>
         )}
       </div>
       <button
         onClick={() => { setVisible(false); setTimeout(() => onRemove(toast.id), 350); }}
-        className="text-gray-300 hover:text-gray-600 transition shrink-0 ml-1"
+        aria-label="Fechar aviso"
+        className="text-white/50 hover:text-white transition shrink-0 ml-1"
       >
         <X size={16} />
       </button>
@@ -131,7 +132,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <ToastContext.Provider value={{ addToast, success, error, warning, info }}>
       {children}
       {/* Toast container — fixed bottom-right */}
-      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none">
+      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none" role="status" aria-live="polite">
         {toasts.map(t => (
           <ToastItem key={t.id} toast={t} onRemove={removeToast} />
         ))}

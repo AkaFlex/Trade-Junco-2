@@ -1,9 +1,13 @@
 
 import React, { useState } from 'react';
-import { UserProfile, REGIONS } from '../types';
+import { UserProfile, REGIONS, Region } from '../types';
 import { createRequest } from '../services/tradeService';
 import { generateTradeCode } from '../services/tradeCode';
-import { AlertTriangle, Ban, AlertCircle, User, Phone, Mail, Calendar, Clock, Store, FileSpreadsheet, CheckCircle, Copy } from 'lucide-react';
+import { todayLocal } from '../utils/date';
+import { selloutLink } from '../utils/route';
+import { OptionSelect } from './shared/OptionSelect';
+import { DAILY_RATE, MAX_ACTION_DAYS, MIN_LEAD_DAYS, MIN_DOCERIA_VOLUME } from '../config';
+import { AlertTriangle, Ban, AlertCircle, User, Phone, Calendar, Clock, Store, FileSpreadsheet, CheckCircle, Copy, Link2 } from 'lucide-react';
 import { useToast } from './shared/Toast';
 
 interface Props {
@@ -28,7 +32,7 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
     partnerCode: '',
     orderDate: '', // Data do Pedido
     date: '',      // Data da Ação
-    region: REGIONS[0],
+    region: REGIONS[0] as Region,
     days: 1,
     justification: '',
   });
@@ -47,7 +51,7 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
         return;
     }
 
-    const date = new Date().toISOString().split('T')[0];
+    const date = todayLocal();
     const partner = "Não Informado"; // Bloqueio na etapa inicial
     const region = formData.region; // Default region
     const tradeCode = generateTradeCode();
@@ -67,7 +71,7 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
        days: 0,
        totalValue: 0,
        status: 'blocked_volume',
-       rejectionReason: 'Volume de Doceria abaixo de R$ 5.000 (Auto-bloqueio inicial)'
+       rejectionReason: `Volume de Doceria abaixo de R$ ${MIN_DOCERIA_VOLUME.toLocaleString('pt-BR')} (Auto-bloqueio inicial)`
       });
       setVolumeStatus('failed');
     } catch (err) {
@@ -89,7 +93,9 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
     if (!formData.orderDate) return toast.warning("Data do Pedido é obrigatória.");
     if (!formData.date) return toast.warning("Data da Ação é obrigatória.");
     
-    if (formData.days < 1) return toast.warning("Quantidade de dias inválida.");
+    if (!Number.isInteger(formData.days) || formData.days < 1 || formData.days > MAX_ACTION_DAYS) {
+      return toast.warning(`Dias de ação: informe um número inteiro de 1 a ${MAX_ACTION_DAYS}.`);
+    }
     
     // Justification Check
     if (formData.days > 1 && !formData.justification.trim()) {
@@ -104,10 +110,10 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
     today.setHours(0,0,0,0); // Zera as horas para comparar apenas os dias
 
     const minDate = new Date(today.getTime());
-    minDate.setDate(minDate.getDate() + 7);
+    minDate.setDate(minDate.getDate() + MIN_LEAD_DAYS);
 
     if (actionDate.getTime() < minDate.getTime()) {
-        toast.error("A Data da Ação deve ser agendada com no mínimo 7 dias de antecedência (a partir de hoje).");
+        toast.error(`A Data da Ação deve ser agendada com no mínimo ${MIN_LEAD_DAYS} dias de antecedência (a partir de hoje).`);
         return;
     }
 
@@ -128,7 +134,7 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
         dateOfAction: formData.date,   // Data da Ação
         days: formData.days,
         justification: formData.justification,
-        totalValue: formData.days * 150, // Calculated but hidden from RCA
+        totalValue: formData.days * DAILY_RATE, // Calculated but hidden from RCA
         status: 'pending' as const,
       };
 
@@ -144,7 +150,7 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-2xl max-w-3xl mx-auto overflow-hidden my-4 z-50">
+    <div className="bg-white rounded-md shadow-sm max-w-3xl mx-auto overflow-hidden my-4 z-50">
       <div className="bg-brand-red p-4 text-white flex justify-between items-center">
         <h2 className="font-bold text-lg">Nova Solicitação de Ação</h2>
         {step !== 3 && <button onClick={onCancel} className="text-white/80 hover:text-white font-bold">FECHAR</button>}
@@ -182,13 +188,13 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
             <div className="flex justify-center gap-4 pt-4">
               <button 
                 onClick={() => setMaterialStatus('failed')}
-                className={`px-8 py-4 rounded-xl font-bold transition text-lg w-32 ${materialStatus === 'failed' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                className={`px-8 py-4 rounded-md font-bold transition text-lg w-32 ${materialStatus === 'failed' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
               >
                 NÃO
               </button>
               <button 
                 onClick={() => { setMaterialStatus('success'); setStep(2); }}
-                className="bg-green-600 text-white px-8 py-4 rounded-xl font-bold hover:bg-green-700 shadow-lg text-lg w-32"
+                className="bg-green-600 text-white px-8 py-4 rounded-md font-bold hover:bg-green-700 shadow-lg text-lg w-32"
               >
                 SIM
               </button>
@@ -258,12 +264,12 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
                 </div>
 
                 {/* THE GATEKEEPER QUESTION - NOW COMES FIRST */}
-                <div className="bg-yellow-50 border border-yellow-200 p-4 md:p-6 rounded-xl">
+                <div className="bg-yellow-50 border border-yellow-200 p-4 md:p-6 rounded-md">
                   <h3 className="font-bold text-yellow-900 text-lg mb-2 flex items-center gap-2">
                     <AlertCircle size={20}/> Validação de Volume
                   </h3>
                   <p className="text-yellow-800 mb-6 text-sm">
-                    Este parceiro comprou <strong>R$ 5.000,00</strong> ou mais em produtos da categoria <strong>DOCERIA</strong> no mês da ação?
+                    Este parceiro comprou <strong>R$ {MIN_DOCERIA_VOLUME.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong> ou mais em produtos da categoria <strong>DOCERIA</strong> no mês da ação?
                   </p>
                   
                   <div className="flex gap-4">
@@ -303,15 +309,9 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Região *</label>
-                        <select 
-                          className="w-full bg-gray-50 border border-gray-200 p-3 rounded-lg focus:ring-2 focus:ring-brand-red outline-none"
-                          value={formData.region}
-                          onChange={e => setFormData({...formData, region: e.target.value as any})}
-                          required
-                        >
-                          {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
+                        <label htmlFor="rw-region" className="block text-xs font-bold text-gray-500 uppercase mb-1">Região *</label>
+                        <OptionSelect id="rw-region" value={formData.region} options={REGIONS}
+                          onChange={region => setFormData({ ...formData, region })} />
                       </div>
                     </div>
 
@@ -346,7 +346,7 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
                                     required
                                   />
                                 </div>
-                                <p className="text-[10px] text-gray-400 mt-1">*Mínimo 7 dias de antecedência</p>
+                                <p className="text-[10px] text-gray-400 mt-1">*Mínimo {MIN_LEAD_DAYS} dias de antecedência</p>
                             </div>
                         </div>
 
@@ -354,10 +354,10 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Dias de Ação *</label>
                                 <input 
                                 type="number"
-                                min="1" max="5"
+                                min="1" max={MAX_ACTION_DAYS} step="1"
                                 className="w-full bg-white border border-gray-200 p-3 rounded-lg focus:ring-2 focus:ring-brand-red outline-none"
                                 value={formData.days}
-                                onChange={e => setFormData({...formData, days: Number(e.target.value)})}
+                                onChange={e => setFormData({...formData, days: Math.min(MAX_ACTION_DAYS, Math.max(1, Math.trunc(Number(e.target.value) || 1)))})}
                                 required
                                 />
                         </div>
@@ -379,7 +379,7 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
                         <button 
                         onClick={handleCreate}
                         disabled={loading}
-                        className="w-full bg-brand-red text-white py-4 rounded-xl font-bold text-lg shadow-xl hover:bg-red-800 transition transform hover:-translate-y-1 disabled:opacity-50 disabled:translate-y-0"
+                        className="w-full bg-brand-red text-white py-4 rounded-md font-bold text-lg shadow-sm hover:bg-red-800 transition transform hover:-translate-y-1 disabled:opacity-50 disabled:translate-y-0"
                         >
                         {loading ? "Processando..." : "FINALIZAR SOLICITAÇÃO"}
                         </button>
@@ -402,7 +402,7 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
               Sua solicitação foi enviada para aprovação do gestor. Guarde o Código Único abaixo, ele será usado pela degustadora e para o seu reembolso.
             </p>
             
-            <div className="bg-gray-50 border border-gray-200 p-6 rounded-xl max-w-sm mx-auto mb-8">
+            <div className="bg-gray-50 border border-gray-200 p-6 rounded-md max-w-sm mx-auto mb-8">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Código da Ação</p>
               <div className="flex items-center justify-center gap-3">
                 <span className="text-4xl font-black text-brand-red tracking-widest">{generatedCode}</span>
@@ -419,12 +419,23 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
               </div>
             </div>
 
-            <button 
-              onClick={() => onSuccess(generatedCode)} 
-              className="bg-gray-800 text-white px-8 py-4 rounded-xl font-bold hover:bg-black transition shadow-lg w-full md:w-auto"
-            >
-              VOLTAR AO INÍCIO
-            </button>
+            <div className="flex flex-col md:flex-row gap-3 justify-center">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(selloutLink(generatedCode));
+                  toast.success("Link copiado!", "Envie para a degustadora: ele abre o Sell-Out já com o código (vale após a aprovação).");
+                }}
+                className="bg-white text-gray-800 border border-gray-300 px-6 py-4 rounded-md font-bold hover:bg-gray-50 transition w-full md:w-auto flex items-center justify-center gap-2"
+              >
+                <Link2 size={18}/> COPIAR LINK DO SELL-OUT
+              </button>
+              <button 
+                onClick={() => onSuccess(generatedCode)} 
+                className="bg-gray-800 text-white px-8 py-4 rounded-md font-bold hover:bg-black transition shadow-lg w-full md:w-auto"
+              >
+                VOLTAR AO INÍCIO
+              </button>
+            </div>
           </div>
         )}
       </div>

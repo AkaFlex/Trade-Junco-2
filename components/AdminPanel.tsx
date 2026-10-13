@@ -1,1248 +1,383 @@
-
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { TradeRequest, REGIONS, RegionalBudget, SellOutProduct, PRODUCTS_LIST, PaymentInfo } from '../types';
-import { getAllRequests, updateRequestStatus, adminUpdateRequest, getPaymentInfo, saveBudget, checkBudgetAvailability, getAllBudgets, checkAndExpireRequests, getBudgetsForMonth } from '../services/tradeService';
-import { getProducts, addProduct, updateProduct, deleteProduct } from '../services/productsService';
-import { downloadBackup, runSecurityMigration } from '../services/maintenanceService';
-import { Check, X, Ban, LayoutDashboard, Wallet, ListChecks, AlertTriangle, User, TrendingUp, Loader2, Eye, FileText, Camera, DollarSign, Archive, Clock, PlayCircle, CheckCircle, XCircle, ArchiveX, Shield, ChevronLeft, ChevronRight, Pencil, FileSpreadsheet, ShoppingBag, Search, PartyPopper, HeartHandshake } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
-import { StatusBadge } from './shared/StatusBadge';
+import React, { useState, useEffect, useCallback } from 'react';
+import { LayoutDashboard, ListChecks, Wallet, Settings, Loader2, Archive, Shield, FileSpreadsheet, AlertTriangle, X } from 'lucide-react';
+import { TradeRequest, PaymentInfo, RequestStatus } from '../types';
+import {
+  getAllRequests, updateRequestStatus, adminUpdateRequest, getPaymentInfo,
+  checkBudgetAvailability, checkAndExpireRequests, getBudgetsForMonth, reopenRequest,
+} from '../services/tradeService';
+import { downloadBackup, runSecurityMigration, logAdminEvent } from '../services/maintenanceService';
+import { uploadFiles } from '../services/uploadService';
+import { auth } from '../firebaseConfig';
 import { useToast } from './shared/Toast';
+import { useConfirm } from './shared/ConfirmModal';
+import { monthLocal } from '../utils/date';
+import { REQUEST_TYPE_LABELS, typeOf, isEventLike, isRequestOverdue } from './admin/shared';
+import { exportToCSV } from './admin/csv';
+import { OverviewTab } from './admin/OverviewTab';
+import { RequestsTab, RequestsFilter } from './admin/RequestsTab';
+import { FinanceTab } from './admin/FinanceTab';
+import { SettingsTab } from './admin/SettingsTab';
+import { RequestDetailsModal } from './admin/RequestDetailsModal';
 
-const REQUEST_TYPE_LABELS: Record<string, string> = {
-  degustacao: 'Degustação',
-  personalizacao: 'Personalização',
-  evento: 'Evento',
-  acao_social: 'Ação Social',
-};
-// Personalização/Evento/Ação Social share the same "no execution phase" semantics:
-// approval goes straight to 'completed', and they never reach the finance/payment tab.
-const EVENT_LIKE_TYPES = ['personalizacao', 'evento', 'acao_social'];
+type Tab = 'overview' | 'requests' | 'finance' | 'settings';
 
-// Client-side only "Atrasado" (overdue) flag — never persisted to Firestore.
-// Scoped to Evento/Ação Social per their 3-day response SLA.
-const isRequestOverdue = (r: TradeRequest): boolean =>
-  (r.requestType === 'evento' || r.requestType === 'acao_social') &&
-  r.status === 'pending' &&
-  (Date.now() - r.createdAt) > 3 * 24 * 60 * 60 * 1000;
+const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
+  { key: 'overview', label: 'Visão Geral', icon: <LayoutDashboard size={18} /> },
+  { key: 'requests', label: 'Solicitações', icon: <ListChecks size={18} /> },
+  { key: 'finance', label: 'Financeiro', icon: <Wallet size={18} /> },
+  { key: 'settings', label: 'Configurações', icon: <Settings size={18} /> },
+];
 
-// --- HELPER COMPONENTS ---
-
-const KPICard = ({ title, value, icon, color }: any) => (
-  <div className="p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between bg-white hover:shadow-md hover:-translate-y-1 transition-all duration-300">
-    <div className="min-w-0">
-      <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1 truncate">{title}</p>
-      <h3 className="text-2xl md:text-3xl font-extrabold text-gray-800 truncate">{value}</h3>
-    </div>
-    <div className={`p-3 md:p-4 rounded-xl ${color} bg-opacity-20 backdrop-blur-sm shrink-0 ml-4`}>
-      {icon}
-    </div>
-  </div>
-);
-
-const NavButton = ({ active, onClick, icon, label, count }: any) => (
-  <button
-    onClick={onClick}
-    className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-2 px-3 md:px-5 py-2.5 rounded-xl transition font-medium text-xs md:text-sm border whitespace-nowrap ${active ? 'bg-brand-purple text-white border-brand-purple shadow-lg shadow-purple-200' : 'bg-white text-gray-600 border-gray-100 hover:bg-gray-50 hover:border-gray-200'}`}
-  >
-    {icon}
-    <span className="hidden md:inline">{label}</span>
-    {count !== undefined && count > 0 && (
-      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ml-1 ${active ? 'bg-white text-brand-purple' : 'bg-gray-100 text-gray-600'}`}>
-        {count}
-      </span>
-    )}
-  </button>
-);
-
-// ---------------------------------------------------------------------------
-// CSV Export Helper
-// ---------------------------------------------------------------------------
-const exportToCSV = (requests: TradeRequest[], payments: Record<string, PaymentInfo | null>) => {
-  const headers = [
-    'Tipo', 'ID (Firestore)', 'Código Único', 'RCA', 'Email RCA', 'Telefone', 'Cod. Parceiro', 'Região',
-    'Data do Pedido', 'Data da Ação', 'Dias', 'Valor (R$)', 'Status',
-    'Motivo Recusa', 'Chave PIX', 'Titular PIX', 'CPF PIX', 'Criado em',
-    'Espaço (Person.)', 'Categoria Marca', 'Fornecedor Local', 'Gráfica Atribuída (ADM)', 'Fotos'
-  ];
-
-  const STATUS_LABELS: Record<string, string> = {
-    pending: 'Aguardando Aprovação',
-    approved: 'Em Execução',
-    rejected: 'Recusado',
-    completed: 'Aguardando Pagamento',
-    paid: 'Pago / Finalizado',
-    blocked_volume: 'Bloqueado (Volume)',
-    expired: 'Vencido / Expirado',
-  };
-
-  const escape = (val: any) => {
-    const str = String(val ?? '').replace(/"/g, '""');
-    return `"${str}"`;
-  };
-
-  const rows = requests.map(r => [
-    REQUEST_TYPE_LABELS[r.requestType || 'degustacao'] || 'Degustação',
-    r.id,
-    r.tradeCode || '',
-    r.rcaName,
-    r.rcaEmail,
-    r.rcaPhone,
-    r.partnerCode,
-    r.region,
-    r.orderDate ? new Date(r.orderDate + 'T12:00:00').toLocaleDateString('pt-BR') : '',
-    r.dateOfAction ? new Date(r.dateOfAction + 'T12:00:00').toLocaleDateString('pt-BR') : '',
-    r.days,
-    Number(r.totalValue).toFixed(2).replace('.', ','),
-    STATUS_LABELS[r.status] ?? r.status,
-    r.rejectionReason ?? '',
-    payments[r.id]?.pixKey ?? '',
-    payments[r.id]?.pixHolder ?? '',
-    payments[r.id]?.pixCpf ?? '',
-    new Date(r.createdAt).toLocaleString('pt-BR'),
-    r.customizationSpace ?? '',
-    r.brandCategory ?? '',
-    r.supplierIndication ?? '',
-    r.adminAssignedSupplier ?? '',
-    (r.spacePhotoUrls || [r.spacePhotoUrl]).filter(Boolean).join(' | ')
-  ].map(escape).join(';'));
-
-  const bom = '\uFEFF'; // UTF-8 BOM for Excel
-  const csv = bom + [headers.map(h => `"${h}"`).join(';'), ...rows].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `junco-trade-${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-};
-
-// ---------------------------------------------------------------------------
-// Main Component
-// ---------------------------------------------------------------------------
 export const AdminPanel: React.FC = () => {
   const toast = useToast();
+  const confirm = useConfirm();
 
   const [requests, setRequests] = useState<TradeRequest[]>([]);
-  const [view, setView] = useState<'dashboard' | 'approvals' | 'execution' | 'history' | 'finance' | 'budgets' | 'products' | 'blocked' | 'expired'>('dashboard');
-  const [loading, setLoading] = useState(false);
-  const [approvingId, setApprovingId] = useState<string | null>(null);
-  const [selectedRequest, setSelectedRequest] = useState<TradeRequest | null>(null);
+  const [monthlyBudgets, setMonthlyBudgets] = useState<Record<string, number>>({});
+  const [tab, setTab] = useState<Tab>('overview');
+  const [filter, setFilter] = useState<RequestsFilter>({ status: 'pending', type: 'all', search: '', overdueOnly: false });
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [maintenanceBusy, setMaintenanceBusy] = useState(false);
 
-  // Search / filter
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Rejection Modal
-  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<TradeRequest | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState<PaymentInfo | null>(null);
+  const [rejecting, setRejecting] = useState<TradeRequest | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
-  // Customization Supplier Edit
-  const [adminSupplier, setAdminSupplier] = useState('');
+  const patch = (id: string, data: Partial<TradeRequest>) => {
+    setRequests(prev => prev.map(r => (r.id === id ? { ...r, ...data } : r)));
+    setSelected(prev => (prev?.id === id ? { ...prev, ...data } : prev));
+  };
 
-  // Budget States
-  const [monthlyBudgets, setMonthlyBudgets] = useState<Record<string, number>>({});
-  const [annualBudgets, setAnnualBudgets] = useState<Record<string, number>>({});
-
-  // Edit Value
-  const [editingValueId, setEditingValueId] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState<string>('');
-
-  const [payingId, setPayingId] = useState<string | null>(null);
-
-  const currentMonthStr = new Date().toISOString().slice(0, 7);
-  const [budgetForm, setBudgetForm] = useState({ region: REGIONS[0], month: currentMonthStr, limit: 5000 });
-  const [editingBudgetRegion, setEditingBudgetRegion] = useState<string | null>(null);
-
-  // Products (Sell-Out checklist) States
-  const [products, setProducts] = useState<SellOutProduct[]>([]);
-  const [newProductName, setNewProductName] = useState('');
-  const [editingProductId, setEditingProductId] = useState<string | null>(null);
-  const [editProductName, setEditProductName] = useState('');
-
-  // ------------------------------------------------------------------
-  // Data Loading
-  // ------------------------------------------------------------------
   const loadData = useCallback(async () => {
     try {
       const data = await getAllRequests();
       setRequests(data.sort((a, b) => b.createdAt - a.createdAt));
-    } catch (e) {
-      console.error("Erro ao carregar dados", e);
-      toast.error("Erro ao carregar dados", "Tente recarregar a página.");
+    } catch (e: any) {
+      toast.error('Erro ao carregar solicitações', e?.message);
     }
   }, []);
 
-  /**
-   * OPTIMIZED: All region budget reads happen in parallel via getBudgetsForMonth
-   */
-  const loadBudgets = useCallback(async (month: string) => {
-    try {
-      // Parallel fetch for all regions of selected month
-      const monthly = await getBudgetsForMonth(month);
-      setMonthlyBudgets(monthly);
-
-      // Annual totals: fetch all budgets and sum by region for the year
-      const year = month.split('-')[0];
-      const allBudgets = await getAllBudgets();
-      const annual: Record<string, number> = {};
-      allBudgets.forEach(b => {
-        if (b.month?.startsWith(year)) {
-          annual[b.region] = (annual[b.region] || 0) + Number(b.limit);
-        }
-      });
-      setAnnualBudgets(annual);
-    } catch (e) {
-      console.error("Erro ao carregar orçamentos", e);
-    }
+  const loadBudgets = useCallback(async () => {
+    try { setMonthlyBudgets(await getBudgetsForMonth(monthLocal())); } catch { /* painel funciona sem orçamento */ }
   }, []);
 
   useEffect(() => {
-    const init = async () => {
+    (async () => {
       setLoading(true);
       try {
-        await checkAndExpireRequests();
-        await Promise.all([loadData(), loadBudgets(currentMonthStr)]);
+        const expired = await checkAndExpireRequests();
+        if (expired > 0) toast.info(`${expired} solicitação(ões) venceram`, 'Reembolso não enviado no prazo. Veja em Solicitações → Vencidas.');
+        await Promise.all([loadData(), loadBudgets()]);
       } finally {
         setLoading(false);
       }
-    };
-    init();
+    })();
   }, []);
 
   useEffect(() => {
-    if (view === 'budgets') loadBudgets(budgetForm.month);
-  }, [budgetForm.month, view, loadBudgets]);
+    setSelectedPayment(null);
+    if (!selected) return;
+    let active = true;
+    getPaymentInfo(selected).then(p => { if (active) setSelectedPayment(p); });
+    return () => { active = false; };
+  }, [selected?.id]);
 
-  const loadProducts = useCallback(async () => {
+  // ------------------------------------------------------------------ ações
+  const withBusy = async (id: string, fn: () => Promise<void>) => {
+    setBusyId(id);
+    try { await fn(); } finally { setBusyId(null); }
+  };
+
+  const handleApprove = (r: TradeRequest) => withBusy(r.id, async () => {
     try {
-      setProducts(await getProducts());
-    } catch (e) {
-      console.error("Erro ao carregar produtos", e);
-      toast.error("Erro ao carregar produtos.");
-    }
-  }, []);
-
-  useEffect(() => {
-    if (view === 'products') loadProducts();
-  }, [view, loadProducts]);
-
-  // ------------------------------------------------------------------
-  // Inline Value Editing
-  // ------------------------------------------------------------------
-  const startEditingValue = useCallback((req: TradeRequest) => {
-    setEditingValueId(req.id);
-    setEditValue(req.totalValue.toString());
-  }, []);
-
-  const cancelEditingValue = useCallback(() => {
-    setEditingValueId(null);
-    setEditValue('');
-  }, []);
-
-  const saveEditingValue = useCallback(async (req: TradeRequest) => {
-    const newValue = Number(editValue);
-    if (isNaN(newValue) || newValue < 0) {
-      toast.error("Valor inválido", "Digite um número maior ou igual a zero.");
-      return;
-    }
-    try {
-      await adminUpdateRequest(req.id, { totalValue: newValue });
-      setRequests(prev => prev.map(r => r.id === req.id ? { ...r, totalValue: newValue } : r));
-      setEditingValueId(null);
-      toast.success("Valor atualizado com sucesso!");
-    } catch (e) {
-      console.error(e);
-      toast.error("Erro ao salvar novo valor.");
-    }
-  }, [editValue]);
-
-  // ------------------------------------------------------------------
-  // Approvals / Rejections
-  // ------------------------------------------------------------------
-  const handleApprove = useCallback(async (req: TradeRequest) => {
-    if (!req?.id) return toast.error("Erro: ID inválido.");
-    setApprovingId(req.id);
-    try {
-      const month = req.dateOfAction?.length >= 7 ? req.dateOfAction.slice(0, 7) : currentMonthStr;
-      let budgetCheck = { allowed: true, message: "" };
-      try {
-        if (req.dateOfAction) {
-          budgetCheck = await checkBudgetAvailability(req.region, month, Number(req.totalValue));
-        }
-      } catch (err) {
-        console.error("Budget check falhou:", err);
+      const budget = await checkBudgetAvailability(r.region, r.dateOfAction?.slice(0, 7) || monthLocal(), Number(r.totalValue));
+      if (!budget.allowed) {
+        const ok = await confirm({
+          title: 'Orçamento estourado',
+          message: <>A região <strong>{r.region}</strong> não tem verba suficiente no mês.<br />{budget.message}<br /><br />Aprovar mesmo assim?</>,
+          confirmLabel: 'Aprovar mesmo assim',
+          danger: true,
+        });
+        if (!ok) return;
       }
-
-      if (!budgetCheck.allowed) {
-        const confirmOverride = window.confirm(
-          `ATENÇÃO: ${budgetCheck.message}\n\nDeseja forçar a aprovação mesmo sem orçamento?`
-        );
-        if (!confirmOverride) return;
-      }
-
-      const nextStatus = EVENT_LIKE_TYPES.includes(req.requestType || '') ? 'completed' : 'approved';
-      await updateRequestStatus(req.id, nextStatus);
-      setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: nextStatus } : r));
-      toast.success(`${REQUEST_TYPE_LABELS[req.requestType || 'degustacao']} aprovada!`, `${req.rcaName} — Parceiro ${req.partnerCode}`);
-    } catch (error: any) {
-      console.error("ERRO AO APROVAR:", error);
-      toast.error("Erro ao aprovar solicitação", error.message);
-    } finally {
-      setApprovingId(null);
-    }
-  }, [currentMonthStr]);
-
-  const openRejectModal = useCallback((req: TradeRequest) => {
-    setRejectingId(req.id);
-    setRejectionReason('');
-  }, []);
-
-  const confirmReject = useCallback(async () => {
-    if (!rejectingId || !rejectionReason.trim()) return;
-    setApprovingId(rejectingId);
-    try {
-      await updateRequestStatus(rejectingId, 'rejected', rejectionReason);
-      setRequests(prev => prev.map(r => r.id === rejectingId ? { ...r, status: 'rejected' } : r));
-      setRejectingId(null);
-      toast.success("Solicitação recusada.");
-    } catch (e) {
-      toast.error("Erro ao recusar solicitação.");
-    } finally {
-      setApprovingId(null);
-    }
-  }, [rejectingId, rejectionReason]);
-
-  const handleMarkAsPaid = useCallback(async (req: TradeRequest) => {
-    setPayingId(req.id);
-    try {
-      await updateRequestStatus(req.id, 'paid');
-      setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'paid' } : r));
-      toast.success("Pagamento registrado!", `R$ ${Number(req.totalValue).toLocaleString('pt-BR')} para ${req.rcaName}`);
+      const next: RequestStatus = isEventLike(r) ? 'completed' : 'approved';
+      await updateRequestStatus(r.id, next);
+      patch(r.id, { status: next, rejectionReason: undefined });
+      toast.success(`${REQUEST_TYPE_LABELS[typeOf(r)]} aprovada!`, `${r.rcaName} — ${r.partnerCode}`);
     } catch (e: any) {
-      toast.error("Erro ao registrar pagamento", e.message);
-    } finally {
-      setPayingId(null);
+      toast.error('Erro ao aprovar', e?.message);
     }
-  }, []);
+  });
 
-  const handleSaveBudget = useCallback(async (region: string) => {
-    try {
-      await saveBudget(region as any, budgetForm.month, Number(budgetForm.limit));
-      await loadBudgets(budgetForm.month);
-      setEditingBudgetRegion(null);
-      toast.success("Orçamento salvo!", `${region} — ${budgetForm.month}`);
-    } catch (e) {
-      toast.error("Erro ao salvar orçamento.");
-    }
-  }, [budgetForm.month, budgetForm.limit, loadBudgets]);
-
-  const handleAddProduct = useCallback(async () => {
-    if (!newProductName.trim()) return toast.warning("Digite o nome do produto.");
-    try {
-      const nextOrder = products.length > 0 ? Math.max(...products.map(p => p.order)) + 1 : 0;
-      await addProduct(newProductName, nextOrder);
-      setNewProductName('');
-      await loadProducts();
-      toast.success("Produto adicionado!");
-    } catch (e) {
-      toast.error("Erro ao adicionar produto.");
-    }
-  }, [newProductName, products, loadProducts]);
-
-  const handleSaveProductEdit = useCallback(async (id: string) => {
-    if (!editProductName.trim()) return toast.warning("Nome não pode ser vazio.");
-    try {
-      await updateProduct(id, { name: editProductName.trim() });
-      setEditingProductId(null);
-      await loadProducts();
-      toast.success("Produto atualizado!");
-    } catch (e) {
-      toast.error("Erro ao atualizar produto.");
-    }
-  }, [editProductName, loadProducts]);
-
-  const handleToggleProductActive = useCallback(async (p: SellOutProduct) => {
-    try {
-      await updateProduct(p.id, { active: !p.active });
-      await loadProducts();
-    } catch (e) {
-      toast.error("Erro ao atualizar status do produto.");
-    }
-  }, [loadProducts]);
-
-  const handleDeleteProduct = useCallback(async (id: string) => {
-    if (!window.confirm("Excluir este produto permanentemente?")) return;
-    try {
-      await deleteProduct(id);
-      await loadProducts();
-      toast.success("Produto excluído.");
-    } catch (e) {
-      toast.error("Erro ao excluir produto.");
-    }
-  }, [loadProducts]);
-
-  const handleImportDefaultProducts = useCallback(async () => {
-    try {
-      for (let i = 0; i < PRODUCTS_LIST.length; i++) {
-        await addProduct(PRODUCTS_LIST[i], i);
+  const confirmReject = async () => {
+    if (!rejecting || !rejectionReason.trim()) return;
+    const r = rejecting;
+    await withBusy(r.id, async () => {
+      try {
+        await updateRequestStatus(r.id, 'rejected', rejectionReason.trim());
+        patch(r.id, { status: 'rejected', rejectionReason: rejectionReason.trim() });
+        setRejecting(null);
+        toast.success('Solicitação recusada.');
+      } catch (e: any) {
+        toast.error('Erro ao recusar', e?.message);
       }
-      await loadProducts();
-      toast.success("Lista padrão importada!");
-    } catch (e) {
-      toast.error("Erro ao importar lista padrão.");
-    }
-  }, [loadProducts]);
+    });
+  };
 
-  const saveAdminSupplier = async (req: TradeRequest) => {
+  const handleReopen = async (r: TradeRequest) => {
+    const ok = await confirm({
+      title: 'Reabrir solicitação?',
+      message: <>{r.tradeCode} volta para <strong>Em execução</strong>: o RCA poderá enviar o reembolso e a degustadora os relatórios. O prazo de vencimento é recalculado a partir da data da ação.</>,
+      confirmLabel: 'Reabrir',
+    });
+    if (!ok) return;
+    await withBusy(r.id, async () => {
+      try {
+        await reopenRequest(r.id);
+        patch(r.id, { status: 'approved', rejectionReason: undefined });
+        toast.success('Solicitação reaberta.');
+      } catch (e: any) {
+        toast.error('Erro ao reabrir', e?.message);
+      }
+    });
+  };
+
+  const handleMarkPaid = async (r: TradeRequest) => {
+    const ok = await confirm({ title: 'Confirmar pagamento?', message: <>{r.tradeCode} · {r.rcaName} · <strong>R$ {Number(r.totalValue).toLocaleString('pt-BR')}</strong></>, confirmLabel: 'Marcar como pago' });
+    if (!ok) return;
+    await withBusy(r.id, async () => {
+      try {
+        await updateRequestStatus(r.id, 'paid');
+        patch(r.id, { status: 'paid' });
+        toast.success('Pagamento registrado!');
+      } catch (e: any) {
+        toast.error('Erro ao registrar pagamento', e?.message);
+      }
+    });
+  };
+
+  const handleAttachReceipt = (r: TradeRequest, files: File[]) => withBusy(r.id, async () => {
     try {
-      await adminUpdateRequest(req.id, { adminAssignedSupplier: adminSupplier });
-      setRequests(prev => prev.map(r => r.id === req.id ? {...r, adminAssignedSupplier: adminSupplier} : r));
-      setSelectedRequest({...req, adminAssignedSupplier: adminSupplier});
-      toast.success("Fornecedor atualizado com sucesso!");
-    } catch {
-      toast.error("Erro ao salvar o fornecedor.");
+      const { urls, failures } = await uploadFiles(files, 'reembolso-notas', ['image', 'pdf']);
+      failures.forEach(f => toast.error('Arquivo não enviado', f.reason));
+      if (urls.length === 0) return;
+      const receiptUrls = [...(r.receiptUrls || []), ...urls];
+      await adminUpdateRequest(r.id, { receiptUrls, status: 'paid' });
+      patch(r.id, { receiptUrls, status: 'paid' });
+      toast.success('Recibo anexado e solicitação concluída!');
+    } catch (e: any) {
+      toast.error('Erro ao anexar recibo', e?.message);
+    }
+  });
+
+  const handleCompleteWithoutReceipt = async (r: TradeRequest) => {
+    const ok = await confirm({ title: 'Concluir sem recibo?', message: `${r.tradeCode} sai do Financeiro como concluída, sem arquivo anexado.`, confirmLabel: 'Concluir' });
+    if (!ok) return;
+    await withBusy(r.id, async () => {
+      try {
+        await updateRequestStatus(r.id, 'paid');
+        patch(r.id, { status: 'paid' });
+        toast.success('Solicitação concluída.');
+      } catch (e: any) {
+        toast.error('Erro ao concluir', e?.message);
+      }
+    });
+  };
+
+  const handleSaveValue = async (r: TradeRequest, value: number) => {
+    if (!Number.isFinite(value) || value < 0) {
+      toast.error('Valor inválido', 'Digite um número maior ou igual a zero.');
+      return false;
+    }
+    try {
+      await adminUpdateRequest(r.id, { totalValue: value });
+      patch(r.id, { totalValue: value });
+      toast.success('Valor atualizado!');
+      return true;
+    } catch (e: any) {
+      toast.error('Erro ao salvar valor', e?.message);
+      return false;
     }
   };
 
-  const handleExport = useCallback(async () => {
-    if (requests.length === 0) {
-      toast.warning("Nenhum dado para exportar.");
-      return;
+  const handleSaveSupplier = async (r: TradeRequest, supplier: string) => {
+    try {
+      await adminUpdateRequest(r.id, { adminAssignedSupplier: supplier.trim() });
+      patch(r.id, { adminAssignedSupplier: supplier.trim() });
+      toast.success('Fornecedor atualizado!');
+    } catch (e: any) {
+      toast.error('Erro ao salvar o fornecedor', e?.message);
     }
-    const entries = await Promise.all(requests.map(async r => [r.id, await getPaymentInfo(r)] as const));
-    exportToCSV(requests, Object.fromEntries(entries));
-    toast.success("CSV exportado!", `${requests.length} solicitações incluídas.`);
-  }, [requests]);
+  };
 
-  const [selectedPayment, setSelectedPayment] = useState<PaymentInfo | null>(null);
-  useEffect(() => {
-    setSelectedPayment(null);
-    if (!selectedRequest) return;
-    let active = true;
-    getPaymentInfo(selectedRequest).then(p => { if (active) setSelectedPayment(p); });
-    return () => { active = false; };
-  }, [selectedRequest?.id]);
-
-  const [maintenanceBusy, setMaintenanceBusy] = useState(false);
-
-  const handleBackup = useCallback(async () => {
+  // ------------------------------------------------------------------ manutenção
+  const runMaintenance = async (fn: () => Promise<void>) => {
     setMaintenanceBusy(true);
+    try { await fn(); } finally { setMaintenanceBusy(false); }
+  };
+
+  const handleExport = () => runMaintenance(async () => {
+    if (requests.length === 0) return toast.warning('Nenhum dado para exportar.');
+    const ok = await confirm({ title: 'Exportar CSV?', message: 'O arquivo inclui dados pessoais e de PIX (LGPD). A exportação fica registrada com o seu e-mail.', confirmLabel: 'Exportar' });
+    if (!ok) return;
+    const who = auth.currentUser?.email || 'desconhecido';
+    const entries = await Promise.all(requests.map(async r => [r.id, await getPaymentInfo(r)] as const));
+    exportToCSV(requests, Object.fromEntries(entries), who);
+    await logAdminEvent('export_csv', { rows: requests.length });
+    toast.success('CSV exportado!', `${requests.length} solicitações.`);
+  });
+
+  const handleBackup = () => runMaintenance(async () => {
     try {
       await downloadBackup();
-      toast.success("Backup baixado!", "Guarde o arquivo JSON em local seguro.");
+      await logAdminEvent('backup_json', {});
+      toast.success('Backup baixado!', 'Guarde o arquivo JSON em local seguro.');
     } catch (e: any) {
-      toast.error("Erro ao gerar backup", e?.message);
-    } finally {
-      setMaintenanceBusy(false);
+      toast.error('Erro ao gerar backup', e?.message);
     }
-  }, []);
+  });
 
-  const handleSecurityMigration = useCallback(async () => {
-    setMaintenanceBusy(true);
+  const handleMigration = () => runMaintenance(async () => {
     try {
       const r = await runSecurityMigration();
-      toast.success("Migração concluída!", `${r.indexed} códigos indexados · ${r.paymentsMoved} PIX protegidos · ${r.total} solicitações verificadas`);
+      toast.success('Migração concluída!', `${r.indexed} códigos indexados · ${r.paymentsMoved} PIX protegidos · ${r.total} solicitações verificadas`);
       await loadData();
     } catch (e: any) {
-      toast.error("Erro na migração", e?.message);
-    } finally {
-      setMaintenanceBusy(false);
+      toast.error('Erro na migração', e?.message);
     }
-  }, [loadData]);
+  });
 
-  // ------------------------------------------------------------------
-  // MEMOIZED LISTS & STATS
-  // ------------------------------------------------------------------
-  const {
-    pendingRequests, inExecutionRequests, financeRequests,
-    paidRequests, blockedRequests, expiredRequests,
-    regionStats, productPerformance
-  } = useMemo(() => {
-    const pending   = requests.filter(r => r.status === 'pending');
-    const inExec    = requests.filter(r => r.status === 'approved');
-    const finance   = requests.filter(r => r.status === 'completed');
-    const paid      = requests.filter(r => r.status === 'paid');
-    const blocked   = requests.filter(r => r.status === 'blocked_volume');
-    const expired   = requests.filter(r => r.status === 'expired');
-
-    const stats = REGIONS.map(region => {
-      const realized = paid
-        .filter(r => r.region === region)
-        .reduce((sum, r) => sum + (Number(r.totalValue) || 0), 0);
-      const planned = requests
-        .filter(r => r.region === region && (r.status === 'approved' || r.status === 'completed'))
-        .reduce((sum, r) => sum + (Number(r.totalValue) || 0), 0);
-      return { name: region, spent: realized + planned, realized, planned, limit: monthlyBudgets[region] || 0 };
-    });
-
-    const productStats: Record<string, number> = {};
-    requests.forEach(req => {
-      req.salesReports?.forEach(report => {
-        report.products?.forEach(p => {
-          if (p.qty > 0) productStats[p.name] = (productStats[p.name] || 0) + p.qty;
-        });
-      });
-    });
-
-    const perf = Object.entries(productStats)
-      .map(([name, qty]) => ({ name, qty }))
-      .sort((a, b) => b.qty - a.qty)
-      .slice(0, 8);
-
-    return {
-      pendingRequests: pending,
-      inExecutionRequests: inExec,
-      financeRequests: finance,
-      paidRequests: paid,
-      blockedRequests: blocked,
-      expiredRequests: expired,
-      regionStats: stats,
-      productPerformance: perf
-    };
-  }, [requests, monthlyBudgets]);
-
-  // Filter the active list based on search query
-  const activeList = useMemo(() => {
-    const raw =
-      view === 'approvals'  ? pendingRequests :
-      view === 'execution'  ? inExecutionRequests :
-      view === 'finance'    ? financeRequests :
-      view === 'history'    ? paidRequests :
-      view === 'blocked'    ? blockedRequests :
-      expiredRequests;
-
-    if (!searchQuery.trim()) return raw;
-    const q = searchQuery.toLowerCase();
-    return raw.filter(r =>
-      r.rcaName?.toLowerCase().includes(q) ||
-      r.rcaEmail?.toLowerCase().includes(q) ||
-      r.partnerCode?.toLowerCase().includes(q) ||
-      r.region?.toLowerCase().includes(q) ||
-      r.adminAssignedSupplier?.toLowerCase().includes(q)
-    );
-  }, [view, searchQuery, pendingRequests, inExecutionRequests, financeRequests, paidRequests, blockedRequests, expiredRequests]);
-
-  const COLORS = ['#FF8042', '#00C49F', '#FFBB28', '#0088FE', '#8884d8', '#82ca9d', '#ffc658', '#8dd1e1', '#a4de6c', '#d0ed57'];
+  const counts = {
+    requests: requests.filter(r => r.status === 'pending').length,
+    finance: requests.filter(r => r.status === 'completed').length,
+    overdue: requests.filter(isRequestOverdue).length,
+  };
 
   return (
-    <div className="p-4 md:p-8 bg-gray-50 min-h-screen font-sans">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-gray-800 tracking-tight flex items-center gap-2">
-            <Shield className="text-brand-purple" size={32}/> Painel de Gestão
-          </h1>
-          <p className="text-gray-500 font-medium text-sm md:text-base">Administração de Verbas e Aprovações</p>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={handleBackup}
-            disabled={maintenanceBusy}
-            title="Baixa uma cópia (JSON) de todas as coleções"
-            className="bg-white text-gray-700 border border-gray-200 px-4 py-2.5 rounded-xl hover:bg-gray-50 transition flex items-center gap-2 font-bold text-sm disabled:opacity-50"
-          >
-            <Archive size={18} /> <span className="hidden md:inline">Backup</span>
-          </button>
-          <button
-            onClick={handleSecurityMigration}
-            disabled={maintenanceBusy}
-            title="Indexa os códigos TJ e protege os dados de PIX (rodar após publicar as novas regras)"
-            className="bg-white text-gray-700 border border-gray-200 px-4 py-2.5 rounded-xl hover:bg-gray-50 transition flex items-center gap-2 font-bold text-sm disabled:opacity-50"
-          >
-            <Shield size={18} /> <span className="hidden md:inline">Migrar segurança</span>
-          </button>
-          <button
-            onClick={handleExport}
-            className="bg-green-700 text-white px-4 py-2.5 rounded-xl hover:bg-green-800 transition shadow-lg hover:shadow-green-200 flex items-center gap-2 font-bold text-sm"
-          >
-            <FileSpreadsheet size={18} /> <span className="hidden md:inline">Exportar CSV</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Navigation */}
-      <div className="flex overflow-x-auto pb-2 gap-2 mb-6 bg-white p-2.5 rounded-2xl shadow-sm border border-gray-100 sticky top-0 z-10 backdrop-blur-md bg-white/90 no-scrollbar">
-        <NavButton active={view === 'dashboard'}  onClick={() => setView('dashboard')}  icon={<LayoutDashboard size={18}/>} label="Visão Geral" />
-        <NavButton active={view === 'approvals'}  onClick={() => setView('approvals')}  icon={<ListChecks size={18}/>}      label="Aprovações"   count={pendingRequests.length} />
-        <NavButton active={view === 'execution'}  onClick={() => setView('execution')}  icon={<PlayCircle size={18}/>}      label="Em Execução"  count={inExecutionRequests.length} />
-        <NavButton active={view === 'finance'}    onClick={() => setView('finance')}    icon={<Wallet size={18}/>}          label="Financeiro"   count={financeRequests.length} />
-        <NavButton active={view === 'history'}    onClick={() => setView('history')}    icon={<Archive size={18}/>}         label="Histórico" />
-        <NavButton active={view === 'budgets'}    onClick={() => setView('budgets')}    icon={<DollarSign size={18}/>}      label="Orçamentos" />
-        <NavButton active={view === 'products'}   onClick={() => setView('products')}   icon={<ShoppingBag size={18}/>}     label="Produtos" />
-        <NavButton active={view === 'blocked'}    onClick={() => setView('blocked')}    icon={<Ban size={18}/>}             label="Bloqueios"    count={blockedRequests.length} />
-        <NavButton active={view === 'expired'}    onClick={() => setView('expired')}    icon={<ArchiveX size={18}/>}        label="Vencidos"     count={expiredRequests.length} />
-      </div>
-
-      {loading && (
-        <div className="flex justify-center py-20">
-          <Loader2 className="animate-spin text-brand-purple" size={48} />
-        </div>
-      )}
-
-      {/* ---- DASHBOARD ---- */}
-      {!loading && view === 'dashboard' && (
-        <div className="space-y-8 animate-in fade-in">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-            <KPICard title="Total Pago"     value={`R$ ${regionStats.reduce((acc, r) => acc + r.realized, 0).toLocaleString('pt-BR')}`} icon={<TrendingUp size={28} className="text-green-600"/>}    color="bg-green-50" />
-            <KPICard title="Total Previsto" value={`R$ ${regionStats.reduce((acc, r) => acc + r.planned,  0).toLocaleString('pt-BR')}`} icon={<Clock size={28} className="text-blue-600"/>}          color="bg-blue-50" />
-            <KPICard title="Pendentes"      value={pendingRequests.length}                                                               icon={<AlertTriangle size={28} className="text-yellow-600"/>} color="bg-yellow-50" />
-            <KPICard title="Expirados"      value={expiredRequests.length}                                                               icon={<ArchiveX size={28} className="text-gray-600"/>}        color="bg-gray-50" />
+    <div className="p-4 md:p-8 bg-paper min-h-screen">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-condensed font-bold uppercase tracking-wide text-navy flex items-center gap-2">
+              <Shield size={28} /> Painel de Gestão
+            </h1>
+            <p className="text-muted text-sm">Aprovações, financeiro e configurações do Trade</p>
           </div>
-
-          <div className="grid lg:grid-cols-2 gap-8">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 min-w-0">
-              <h3 className="text-lg font-bold text-gray-800 mb-6">Investimento (Realizado + Previsto)</h3>
-              <div className="h-72 w-full min-w-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={regionStats}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0"/>
-                    <XAxis dataKey="name" fontSize={11} tickLine={false} axisLine={false} interval={0} angle={-15} textAnchor="end" height={60} />
-                    <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `R$${v/1000}k`} />
-                    <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
-                    <Bar dataKey="spent" name="Total Usado" fill="#6B21A8" radius={[4,4,0,0]} barSize={20} />
-                    <Bar dataKey="limit" name="Limite"      fill="#E5E7EB" radius={[4,4,0,0]} barSize={20} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 min-w-0">
-              <h3 className="text-lg font-bold text-gray-800 mb-6">Mix de Solicitações</h3>
-              <div className="h-72 w-full min-w-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={regionStats.filter(r => r.spent > 0)} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="spent">
-                      {regionStats.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend verticalAlign="bottom" height={36}/>
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 min-w-0">
-            <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
-              <ShoppingBag size={20} className="text-pink-500"/> Performance de Produtos (Sell-Out)
-            </h3>
-            <div className="h-72 w-full min-w-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={productPerformance} layout="vertical" margin={{ left: 10, right: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0"/>
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" width={120} style={{fontSize: '11px', fontWeight: 'bold'}} />
-                  <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ borderRadius: '12px' }} />
-                  <Bar dataKey="qty" name="Unidades Vendidas" fill="#EC4899" radius={[0,4,4,0]} barSize={24}
-                    label={{ position: 'right', fill: '#666', fontSize: 12, fontWeight: 'bold' }} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={handleBackup} disabled={maintenanceBusy} title="Baixa uma cópia (JSON) de todas as coleções"
+              className="bg-white text-gray-700 border border-line px-3 py-2 rounded-md flex items-center gap-2 font-condensed font-semibold uppercase tracking-wide text-sm hover:bg-paper disabled:opacity-50">
+              <Archive size={16} /> Backup
+            </button>
+            <button onClick={handleMigration} disabled={maintenanceBusy} title="Indexa os códigos TJ e protege os dados de PIX (rodar após publicar as regras novas)"
+              className="bg-white text-gray-700 border border-line px-3 py-2 rounded-md flex items-center gap-2 font-condensed font-semibold uppercase tracking-wide text-sm hover:bg-paper disabled:opacity-50">
+              <Shield size={16} /> Migrar segurança
+            </button>
+            <button onClick={handleExport} disabled={maintenanceBusy}
+              className="bg-navy text-white px-3 py-2 rounded-md flex items-center gap-2 font-condensed font-semibold uppercase tracking-wide text-sm hover:opacity-90 disabled:opacity-50">
+              <FileSpreadsheet size={16} /> Exportar CSV
+            </button>
           </div>
         </div>
-      )}
 
-      {/* ---- TABLE VIEWS ---- */}
-      {!loading && view !== 'dashboard' && view !== 'budgets' && view !== 'products' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-in fade-in">
-          <div className="p-4 md:p-6 border-b border-gray-100 bg-gray-50/50 space-y-3">
-            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-              {view === 'approvals' && <><ListChecks className="text-brand-purple"/> Solicitações Pendentes</>}
-              {view === 'execution' && <><PlayCircle className="text-brand-purple"/> Em Execução</>}
-              {view === 'finance'   && <><Wallet className="text-brand-purple"/> Financeiro (A Pagar)</>}
-              {view === 'history'   && <><Archive className="text-brand-purple"/> Histórico de Pagos</>}
-              {view === 'blocked'   && <><Ban className="text-brand-purple"/> Bloqueados</>}
-              {view === 'expired'   && <><ArchiveX className="text-brand-purple"/> Vencidos / Expirados</>}
-            </h2>
-            {/* Search bar */}
-            <div className="relative max-w-sm">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Buscar por RCA, parceiro ou região..."
-                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-purple outline-none bg-white"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50 text-gray-500 uppercase font-bold text-xs tracking-wider border-b border-gray-200">
-                <tr>
-                  <th className="p-4 pl-6 whitespace-nowrap">RCA</th>
-                  <th className="p-4 whitespace-nowrap">Código</th>
-                  <th className="p-4 whitespace-nowrap">Datas</th>
-                  <th className="p-4 whitespace-nowrap">Parceiro</th>
-                  <th className="p-4 whitespace-nowrap">Valor</th>
-                  <th className="p-4 whitespace-nowrap">Status</th>
-                  <th className="p-4 text-center whitespace-nowrap">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {activeList.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="py-16 text-center text-gray-400 font-medium">
-                      {searchQuery ? 'Nenhum resultado para a busca.' : 'Nenhuma solicitação nesta categoria.'}
-                    </td>
-                  </tr>
-                )}
-                {activeList.map(req => (
-                  <tr key={req.id} className="hover:bg-gray-50 transition">
-                    <td className="p-4 pl-6">
-                      <div className="flex items-center gap-3">
-                        {req.rcaName ? (
-                          <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-xs shrink-0">
-                            {req.rcaName.substring(0,2).toUpperCase()}
-                          </div>
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0"><User size={14}/></div>
-                        )}
-                        <div className="min-w-0">
-                          <div className="font-bold text-gray-800 truncate">{req.rcaName}</div>
-                          <div className="text-xs text-gray-500 truncate">{req.rcaEmail}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-4 font-black text-brand-purple whitespace-nowrap">{req.tradeCode || '---'}</td>
-                    <td className="p-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
-                          req.requestType === 'personalizacao' ? 'bg-pink-100 text-pink-700' :
-                          req.requestType === 'evento'         ? 'bg-amber-100 text-amber-700' :
-                          req.requestType === 'acao_social'    ? 'bg-emerald-100 text-emerald-700' :
-                                                                  'bg-purple-100 text-purple-700'
-                        }`}>
-                          {REQUEST_TYPE_LABELS[req.requestType || 'degustacao']}
-                        </span>
-                      </div>
-                      <div className="text-xs font-bold text-gray-700" title="Data Criada">Em: {new Date(req.createdAt).toLocaleDateString('pt-BR')}</div>
-                    </td>
-                    <td className="p-4 whitespace-nowrap">
-                      <div className="font-bold text-gray-800">{req.partnerCode}</div>
-                      <div className="text-xs text-gray-500 font-medium inline-block bg-gray-100 px-2 rounded">{req.region}</div>
-                      {req.requestType === 'personalizacao' && req.adminAssignedSupplier && (
-                        <div className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded border border-blue-100 mt-2 truncate w-full max-w-[120px]" title={req.adminAssignedSupplier}>
-                          Gráf: {req.adminAssignedSupplier}
-                        </div>
-                      )}
-                    </td>
-                    <td className="p-4 font-bold text-gray-800 whitespace-nowrap">
-                      {view === 'approvals' && editingValueId === req.id ? (
-                        <div className="flex items-center gap-1 bg-white border rounded p-1 shadow-sm">
-                          <input
-                            type="number"
-                            className="w-20 outline-none text-sm"
-                            value={editValue}
-                            onChange={e => setEditValue(e.target.value)}
-                            autoFocus
-                          />
-                          <button onClick={() => saveEditingValue(req)} className="text-green-600 hover:bg-green-50 p-1 rounded"><Check size={14}/></button>
-                          <button onClick={cancelEditingValue} className="text-red-600 hover:bg-red-50 p-1 rounded"><X size={14}/></button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 group" onClick={() => view === 'approvals' && startEditingValue(req)}>
-                          <span>R$ {Number(req.totalValue).toLocaleString('pt-BR')}</span>
-                          {view === 'approvals' && <Pencil size={12} className="opacity-0 group-hover:opacity-100 text-gray-400 cursor-pointer"/>}
-                        </div>
-                      )}
-                    </td>
-                    <td className="p-4 whitespace-nowrap"><StatusBadge status={req.status} overdue={isRequestOverdue(req)} /></td>
-                    <td className="p-4 text-center whitespace-nowrap">
-                      <div className="flex justify-center gap-2">
-                        <button onClick={() => setSelectedRequest(req)} className="text-gray-400 hover:text-brand-purple p-2 rounded-lg hover:bg-purple-50 transition" title="Detalhes"><Eye size={18}/></button>
-                        {view === 'approvals' && (
-                          <>
-                            <button onClick={() => handleApprove(req)} disabled={approvingId === req.id} className="bg-green-600 text-white px-2 py-1 rounded text-xs font-bold hover:bg-green-700 disabled:opacity-50">
-                              {approvingId === req.id ? <Loader2 className="animate-spin" size={12}/> : "Aprovar"}
-                            </button>
-                            <button onClick={() => openRejectModal(req)} disabled={approvingId === req.id} className="bg-red-50 text-red-600 border border-red-200 px-2 py-1 rounded text-xs font-bold hover:bg-red-100">
-                              Recusar
-                            </button>
-                          </>
-                        )}
-                        {view === 'finance' && !EVENT_LIKE_TYPES.includes(req.requestType || '') && (
-                          <button onClick={() => handleMarkAsPaid(req)} disabled={payingId === req.id} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700 disabled:opacity-50 flex items-center gap-1">
-                            {payingId === req.id ? <Loader2 className="animate-spin" size={12}/> : <DollarSign size={12}/>} PAGAR
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {activeList.length > 0 && (
-            <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 text-xs text-gray-400 text-right">
-              {activeList.length} {activeList.length === 1 ? 'resultado' : 'resultados'}{searchQuery && ` para "${searchQuery}"`}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ---- BUDGETS ---- */}
-      {!loading && view === 'budgets' && (
-        <div className="space-y-6 animate-in fade-in">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div>
-              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <DollarSign className="text-brand-purple" /> Gestão de Orçamentos
-              </h2>
-            </div>
-            <div className="flex items-center gap-4 bg-gray-50 p-2 rounded-xl border border-gray-200">
-              <button className="p-2 hover:bg-white rounded-lg transition" onClick={() => {
-                const d = new Date(budgetForm.month + '-01');
-                d.setMonth(d.getMonth() - 1);
-                setBudgetForm({ ...budgetForm, month: d.toISOString().slice(0, 7) });
-              }}><ChevronLeft size={20}/></button>
-              <input
-                type="month"
-                className="bg-transparent font-bold text-gray-800 outline-none cursor-pointer"
-                value={budgetForm.month}
-                onChange={e => setBudgetForm({ ...budgetForm, month: e.target.value })}
-              />
-              <button className="p-2 hover:bg-white rounded-lg transition" onClick={() => {
-                const d = new Date(budgetForm.month + '-01');
-                d.setMonth(d.getMonth() + 1);
-                setBudgetForm({ ...budgetForm, month: d.toISOString().slice(0, 7) });
-              }}><ChevronRight size={20}/></button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {regionStats.map((stat, idx) => {
-              const annualLimit   = annualBudgets[stat.name] || 0;
-              const percentUsed   = stat.limit > 0 ? (stat.spent / stat.limit) * 100 : 0;
-              const isEditing     = editingBudgetRegion === stat.name;
-              const realizedWidth = stat.limit > 0 ? (stat.realized / stat.limit) * 100 : 0;
-              const plannedWidth  = stat.limit > 0 ? (stat.planned / stat.limit) * 100 : 0;
-
-              return (
-                <div key={idx} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition group relative overflow-hidden">
-                  <div className={`absolute top-0 left-0 w-1 h-full ${percentUsed > 100 ? 'bg-red-500' : 'bg-brand-purple'}`}></div>
-                  <div className="flex justify-between items-start mb-4 pl-3">
-                    <h3 className="font-bold text-gray-800 text-lg">{stat.name}</h3>
-                    <button
-                      onClick={() => { setEditingBudgetRegion(stat.name); setBudgetForm(p => ({ ...p, limit: stat.limit })); }}
-                      className="text-gray-300 hover:text-brand-purple transition"
-                    >
-                      <Pencil size={16}/>
-                    </button>
-                  </div>
-                  <div className="pl-3 space-y-4">
-                    <div>
-                      <p className="text-xs font-bold text-gray-400 uppercase mb-1">Mensal ({budgetForm.month})</p>
-                      {isEditing ? (
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            className="w-full border rounded p-1 text-sm"
-                            value={budgetForm.limit}
-                            onChange={e => setBudgetForm({ ...budgetForm, limit: Number(e.target.value) })}
-                            autoFocus
-                          />
-                          <button onClick={() => handleSaveBudget(stat.name)} className="text-green-600 bg-green-50 p-1 rounded"><Check size={16}/></button>
-                        </div>
-                      ) : (
-                        <div className="flex justify-between items-end">
-                          <span className="text-2xl font-bold text-gray-800">R$ {stat.limit.toLocaleString('pt-BR')}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-xs mb-1 font-medium">
-                        <span className="text-gray-600">Total: R$ {stat.spent.toLocaleString('pt-BR')}</span>
-                        <span className={percentUsed > 100 ? 'text-red-600 font-bold' : 'text-gray-400'}>{percentUsed.toFixed(0)}%</span>
-                      </div>
-                      <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden flex">
-                        <div className="h-full bg-green-500 transition-all duration-500" style={{ width: `${Math.min(realizedWidth, 100)}%` }} title={`Realizado: R$ ${stat.realized}`}></div>
-                        <div className="h-full bg-blue-400 transition-all duration-500" style={{ width: `${Math.min(plannedWidth, 100 - realizedWidth)}%` }} title={`Previsto: R$ ${stat.planned}`}></div>
-                      </div>
-                      <div className="flex justify-between mt-1 text-[10px] text-gray-400">
-                        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500"></div> Realizado</div>
-                        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-400"></div> Previsto</div>
-                      </div>
-                    </div>
-                    <div className="pt-4 border-t border-gray-50">
-                      <p className="text-xs text-gray-400 flex justify-between">
-                        <span>Orçamento Anual</span>
-                        <span className="font-bold text-gray-600">R$ {annualLimit.toLocaleString('pt-BR')}</span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ---- PRODUCTS ---- */}
-      {!loading && view === 'products' && (
-        <div className="space-y-6 animate-in fade-in">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-4">
-              <ShoppingBag className="text-brand-purple" /> Produtos do Sell-Out
-            </h2>
-            <div className="flex gap-2">
-              <input
-                className="flex-1 border p-3 rounded-lg focus:ring-2 focus:ring-brand-purple outline-none"
-                placeholder="Nome do novo produto (ex: Bala de Coco - 400g)"
-                value={newProductName}
-                onChange={e => setNewProductName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAddProduct()}
-              />
-              <button onClick={handleAddProduct} className="bg-brand-purple text-white px-6 py-3 rounded-lg font-bold hover:opacity-90 transition">
-                Adicionar
-              </button>
-            </div>
-          </div>
-
-          {products.length === 0 && (
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-dashed border-gray-300 text-center">
-              <p className="text-gray-400 mb-4">Nenhum produto cadastrado ainda.</p>
+        <nav className="flex gap-1 mb-6 border-b border-line overflow-x-auto no-scrollbar" role="tablist" aria-label="Seções do painel">
+          {TABS.map(t => {
+            const badge = t.key === 'requests' ? counts.requests : t.key === 'finance' ? counts.finance : 0;
+            return (
               <button
-                onClick={handleImportDefaultProducts}
-                className="bg-gray-100 text-gray-700 px-6 py-3 rounded-lg font-bold hover:bg-gray-200 transition"
+                key={t.key}
+                role="tab"
+                aria-selected={tab === t.key}
+                onClick={() => setTab(t.key)}
+                className={`flex items-center gap-2 px-4 py-2.5 -mb-px border-b-2 font-condensed font-semibold uppercase tracking-wide text-sm whitespace-nowrap ${tab === t.key ? 'border-navy text-navy' : 'border-transparent text-muted hover:text-navy'}`}
               >
-                Importar lista padrão (10 produtos)
+                {t.icon} {t.label}
+                {badge > 0 && <span className={`text-[10px] px-1.5 rounded ${tab === t.key ? 'bg-navy text-white' : 'bg-line text-gray-700'}`}>{badge}</span>}
+                {t.key === 'requests' && counts.overdue > 0 && <span className="text-[10px] px-1.5 rounded bg-red-600 text-white" title="Atrasados">{counts.overdue}</span>}
               </button>
-            </div>
-          )}
+            );
+          })}
+        </nav>
 
-          {products.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 divide-y divide-gray-50">
-              {products.map(p => (
-                <div key={p.id} className="flex items-center justify-between p-4 gap-3">
-                  {editingProductId === p.id ? (
-                    <>
-                      <input
-                        className="flex-1 border rounded p-2 text-sm"
-                        value={editProductName}
-                        onChange={e => setEditProductName(e.target.value)}
-                        autoFocus
-                      />
-                      <button onClick={() => handleSaveProductEdit(p.id)} className="text-green-600 bg-green-50 p-2 rounded"><Check size={16}/></button>
-                      <button onClick={() => setEditingProductId(null)} className="text-gray-400 hover:text-gray-600 p-2"><X size={16}/></button>
-                    </>
-                  ) : (
-                    <>
-                      <span className={`flex-1 font-medium ${p.active === false ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{p.name}</span>
-                      <button
-                        onClick={() => handleToggleProductActive(p)}
-                        className={`text-xs px-2 py-1 rounded-full font-bold ${p.active === false ? 'bg-gray-100 text-gray-500' : 'bg-green-50 text-green-700'}`}
-                      >
-                        {p.active === false ? 'Inativo' : 'Ativo'}
-                      </button>
-                      <button
-                        onClick={() => { setEditingProductId(p.id); setEditProductName(p.name); }}
-                        className="text-gray-300 hover:text-brand-purple p-2"
-                      ><Pencil size={16}/></button>
-                      <button onClick={() => handleDeleteProduct(p.id)} className="text-gray-300 hover:text-red-500 p-2"><X size={16}/></button>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+        {loading ? (
+          <div className="flex justify-center py-20"><Loader2 className="animate-spin text-navy" size={40} /></div>
+        ) : (
+          <>
+            {tab === 'overview' && (
+              <OverviewTab
+                requests={requests}
+                monthlyBudgets={monthlyBudgets}
+                onShowRequests={(status, overdueOnly) => { setFilter({ status, type: 'all', search: '', overdueOnly: !!overdueOnly }); setTab('requests'); }}
+                onShowFinance={() => setTab('finance')}
+              />
+            )}
+            {tab === 'requests' && (
+              <RequestsTab
+                requests={requests}
+                filter={filter}
+                onFilterChange={setFilter}
+                busyId={busyId}
+                onOpen={setSelected}
+                onApprove={handleApprove}
+                onReject={r => { setRejecting(r); setRejectionReason(''); }}
+                onReopen={handleReopen}
+                onSaveValue={handleSaveValue}
+              />
+            )}
+            {tab === 'finance' && (
+              <FinanceTab
+                requests={requests}
+                busyId={busyId}
+                onOpen={setSelected}
+                onMarkPaid={handleMarkPaid}
+                onAttachReceipt={handleAttachReceipt}
+                onCompleteWithoutReceipt={handleCompleteWithoutReceipt}
+              />
+            )}
+            {tab === 'settings' && <SettingsTab requests={requests} onBudgetsChanged={loadBudgets} />}
+          </>
+        )}
+      </div>
 
-      {/* ---- REJECTION MODAL ---- */}
-      {rejectingId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
-                <AlertTriangle className="text-red-500"/> Recusar Solicitação
+      {rejecting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setRejecting(null)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="reject-title" className="bg-white rounded-md shadow-modal w-full max-w-md p-5" onClick={e => e.stopPropagation()}
+            onKeyDown={e => { if (e.key === 'Escape') setRejecting(null); }}>
+            <div className="flex justify-between items-center mb-3">
+              <h3 id="reject-title" className="font-condensed font-bold uppercase tracking-wide text-navy flex items-center gap-2">
+                <AlertTriangle className="text-red-600" size={18} /> Recusar {rejecting.tradeCode}
               </h3>
-              <button onClick={() => setRejectingId(null)} className="text-gray-400 hover:text-gray-600"><X/></button>
+              <button onClick={() => setRejecting(null)} aria-label="Fechar" className="text-muted"><X size={18} /></button>
             </div>
+            <label htmlFor="reject-reason" className="block text-[11px] font-condensed font-semibold uppercase tracking-wide text-muted mb-1">Motivo (visível para o RCA)</label>
             <textarea
-              className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none mb-4"
+              id="reject-reason"
+              className="w-full border border-line rounded-md p-3 text-sm focus:ring-2 focus:ring-red-300 outline-none mb-4"
               rows={4}
-              placeholder="Ex: Valor incorreto, Data indisponível..."
+              placeholder="Ex: Valor incorreto, data indisponível..."
               value={rejectionReason}
               onChange={e => setRejectionReason(e.target.value)}
               autoFocus
             />
             <div className="flex justify-end gap-2">
-              <button onClick={() => setRejectingId(null)} className="px-4 py-2 text-gray-600 font-bold text-sm hover:bg-gray-100 rounded-lg">Cancelar</button>
-              <button onClick={confirmReject} disabled={!rejectionReason.trim()} className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-red-700 disabled:opacity-50">
-                Confirmar Recusa
+              <button onClick={() => setRejecting(null)} className="px-4 py-2 rounded border border-line text-gray-700 font-condensed font-semibold uppercase tracking-wide text-sm">Cancelar</button>
+              <button onClick={confirmReject} disabled={!rejectionReason.trim() || busyId === rejecting.id} className="bg-red-600 text-white px-4 py-2 rounded font-condensed font-semibold uppercase tracking-wide text-sm disabled:opacity-50">
+                Confirmar recusa
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ---- DETAILS MODAL ---- */}
-      {selectedRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="bg-brand-purple p-4 flex justify-between items-center text-white sticky top-0 z-10">
-              <h3 className="font-bold text-lg flex items-center gap-2"><FileText size={20}/> Detalhes da Solicitação</h3>
-              <button onClick={() => setSelectedRequest(null)} className="hover:bg-white/20 p-1 rounded"><X/></button>
-            </div>
-            <div className="p-6 space-y-6">
-              <div className="flex flex-col md:flex-row justify-between items-start gap-4">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                    {selectedRequest.requestType && selectedRequest.requestType !== 'degustacao' ? (
-                      <span className={`font-bold px-2 rounded-lg text-sm mr-2 uppercase ${
-                        selectedRequest.requestType === 'personalizacao' ? 'text-pink-600 bg-pink-100' :
-                        selectedRequest.requestType === 'evento'         ? 'text-amber-700 bg-amber-100' :
-                                                                            'text-emerald-700 bg-emerald-100'
-                      }`}>
-                        {REQUEST_TYPE_LABELS[selectedRequest.requestType]}
-                      </span>
-                    ) : null}
-                    Parceiro: {selectedRequest.partnerCode}
-                  </h2>
-                  <p className="text-gray-500">{selectedRequest.region}</p>
-                  <div className="mt-2 flex gap-2"><StatusBadge status={selectedRequest.status} overdue={isRequestOverdue(selectedRequest)} /></div>
-                </div>
-                {!EVENT_LIKE_TYPES.includes(selectedRequest.requestType || '') && (
-                  <div className="text-right">
-                    <div className="text-xs text-gray-400 uppercase font-bold">Valor Aprovado</div>
-                    <div className="text-3xl font-bold text-brand-purple">R$ {Number(selectedRequest.totalValue).toLocaleString('pt-BR')}</div>
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <h4 className="font-bold text-gray-700 mb-3 flex items-center gap-2"><User size={16}/> Dados do RCA</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <div><span className="block text-gray-400 text-xs uppercase">Nome</span><span className="font-medium">{selectedRequest.rcaName}</span></div>
-                  <div><span className="block text-gray-400 text-xs uppercase">Email</span><span className="font-medium">{selectedRequest.rcaEmail}</span></div>
-                  <div><span className="block text-gray-400 text-xs uppercase">Telefone</span><span className="font-medium">{selectedRequest.rcaPhone}</span></div>
-                </div>
-              </div>
-
-              {/* DADOS DA PERSONALIZAÇÃO */}
-              {selectedRequest.requestType === 'personalizacao' && (
-                <div className="bg-pink-50 p-5 rounded-2xl border border-pink-200 space-y-4">
-                  <div className="flex items-center gap-2 mb-2 border-b border-pink-100 pb-2">
-                    <ShoppingBag className="text-pink-600"/> <h4 className="font-black text-pink-900 uppercase">Detalhes da Personalização</h4>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-pink-900">
-                    <div><span className="block text-pink-500 text-xs uppercase font-bold mb-1">Espaço na Loja</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-pink-100 block">{selectedRequest.customizationSpace || 'N/A'}</span></div>
-                    <div><span className="block text-pink-500 text-xs uppercase font-bold mb-1">Categoria (Marca)</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-pink-100 block">{selectedRequest.brandCategory || 'N/A'}</span></div>
-                    <div><span className="block text-pink-500 text-xs uppercase font-bold mb-1">Indicação de Fornecedor RCA</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-pink-100 block">{selectedRequest.supplierIndication || 'N/A'}</span></div>
-                  </div>
-                  
-                  {((selectedRequest.spacePhotoUrls && selectedRequest.spacePhotoUrls.length > 0) || selectedRequest.spacePhotoUrl) && (
-                    <div className="mt-4 pt-4 border-t border-pink-100">
-                      <span className="block text-pink-500 text-xs uppercase font-bold mb-3">Fotos do Local</span>
-                      <div className="flex flex-wrap gap-4">
-                        {(selectedRequest.spacePhotoUrls || [selectedRequest.spacePhotoUrl]).filter(Boolean).map((url, i) => (
-                          <a key={i} href={url} target="_blank" className="relative group">
-                            <img src={url} className="h-32 w-32 object-cover rounded-lg border-2 border-pink-200 shadow-sm" alt={`Foto ${i+1}`}/>
-                            <div className="absolute inset-0 bg-black/50 text-white flex justify-center items-center font-bold opacity-0 group-hover:opacity-100 transition rounded-lg text-xs">
-                              <Eye size={16} className="mr-1"/> Ver
-                            </div>
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="mt-6 pt-4 border-t border-pink-200">
-                      <h4 className="font-bold text-pink-900 text-sm mb-2 flex items-center gap-2"><Shield size={16}/> Controle Interno (Apenas Gestão)</h4>
-                      <p className="text-xs text-pink-700 mb-2">Atribua a Gráfica/Fornecedor que irá produzir esta personalização. O RCA não tem visão sobre este campo.</p>
-                      
-                      {selectedRequest.adminAssignedSupplier && !adminSupplier ? (
-                        <div className="bg-white border border-pink-200 p-4 rounded-xl flex items-center justify-between">
-                          <div>
-                            <span className="block text-[10px] uppercase font-bold text-pink-400 mb-1">Fornecedor / Gráfica Atribuída</span>
-                            <span className="font-black text-pink-900 text-lg">{selectedRequest.adminAssignedSupplier}</span>
-                          </div>
-                          <button 
-                            onClick={() => setAdminSupplier(selectedRequest.adminAssignedSupplier!)}
-                            className="bg-pink-50 text-pink-600 px-4 py-2 rounded-lg font-bold text-xs hover:bg-pink-100 border border-pink-200 transition"
-                          >
-                            EDITAR
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col md:flex-row items-start md:items-center gap-2 w-full">
-                          <input 
-                            className="flex-1 w-full bg-white border border-pink-200 p-3 rounded-xl focus:ring-2 focus:ring-pink-500 outline-none text-pink-900 font-bold"
-                            placeholder="Ex: Gráfica Expressa da Cidade"
-                            value={adminSupplier}
-                            onChange={e => setAdminSupplier(e.target.value)}
-                          />
-                          <div className="flex gap-2 w-full md:w-auto">
-                            {selectedRequest.adminAssignedSupplier && (
-                               <button 
-                                 onClick={() => setAdminSupplier('')}
-                                 className="bg-gray-100 text-gray-600 px-4 py-3 rounded-xl font-bold hover:bg-gray-200 transition"
-                               >
-                                 CANCELAR
-                               </button>
-                            )}
-                            <button 
-                              onClick={() => {
-                                saveAdminSupplier(selectedRequest);
-                                setAdminSupplier('');
-                              }}
-                              className="bg-pink-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-pink-700 transition flex-1 md:flex-none"
-                            >
-                              SALVAR
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                  </div>
-                </div>
-              )}
-
-              {/* DETALHES DO EVENTO */}
-              {selectedRequest.requestType === 'evento' && (
-                <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200 space-y-4">
-                  <div className="flex items-center gap-2 mb-2 border-b border-amber-100 pb-2">
-                    <PartyPopper className="text-amber-600"/> <h4 className="font-black text-amber-900 uppercase">Detalhes do Evento</h4>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-amber-900">
-                    <div><span className="block text-amber-500 text-xs uppercase font-bold mb-1">Tipo</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-amber-100 block">{selectedRequest.eventCategory === 'esportivo' ? 'Evento Esportivo' : selectedRequest.eventCategory === 'comercial' ? 'Evento Comercial' : 'N/A'}</span></div>
-                    <div><span className="block text-amber-500 text-xs uppercase font-bold mb-1">Instituição/Empresa</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-amber-100 block">{selectedRequest.institutionName || 'N/A'}</span></div>
-                    <div><span className="block text-amber-500 text-xs uppercase font-bold mb-1">Dia do Evento</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-amber-100 block">{selectedRequest.dateOfAction ? new Date(selectedRequest.dateOfAction + 'T12:00:00').toLocaleDateString('pt-BR') : 'N/A'}</span></div>
-                    <div><span className="block text-amber-500 text-xs uppercase font-bold mb-1">Horário</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-amber-100 block">{selectedRequest.eventTime || 'N/A'}</span></div>
-                    <div><span className="block text-amber-500 text-xs uppercase font-bold mb-1">Local</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-amber-100 block">{selectedRequest.eventLocation || 'N/A'}</span></div>
-                    <div><span className="block text-amber-500 text-xs uppercase font-bold mb-1">Público esperado</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-amber-100 block">{selectedRequest.expectedAudience || 'N/A'}</span></div>
-                  </div>
-                  <div>
-                    <span className="block text-amber-500 text-xs uppercase font-bold mb-1">Finalidade do Evento</span>
-                    <p className="font-medium bg-white px-3 py-2 rounded border border-amber-100">{selectedRequest.eventPurpose || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="block text-amber-500 text-xs uppercase font-bold mb-1">Participação da Junco</span>
-                    <p className="font-medium bg-white px-3 py-2 rounded border border-amber-100">{selectedRequest.juncoParticipation || 'N/A'}</p>
-                  </div>
-                  {selectedRequest.mediaKitUrl && (
-                    <a href={selectedRequest.mediaKitUrl} target="_blank" className="inline-flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-amber-200 text-amber-700 font-bold text-sm hover:bg-amber-100 transition">
-                      <FileText size={16}/> Ver Mídia Kit
-                    </a>
-                  )}
-                </div>
-              )}
-
-              {/* DETALHES DA AÇÃO SOCIAL */}
-              {selectedRequest.requestType === 'acao_social' && (
-                <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-200 space-y-4">
-                  <div className="flex items-center gap-2 mb-2 border-b border-emerald-100 pb-2">
-                    <HeartHandshake className="text-emerald-600"/> <h4 className="font-black text-emerald-900 uppercase">Detalhes da Ação Social</h4>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-emerald-900">
-                    <div><span className="block text-emerald-500 text-xs uppercase font-bold mb-1">Data Sazonal?</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-emerald-100 block">{selectedRequest.seasonalDate === 'sim' ? `Sim — ${selectedRequest.seasonalDateDescription || 'N/A'}` : 'Não'}</span></div>
-                    <div><span className="block text-emerald-500 text-xs uppercase font-bold mb-1">Dia do Evento</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-emerald-100 block">{selectedRequest.dateOfAction ? new Date(selectedRequest.dateOfAction + 'T12:00:00').toLocaleDateString('pt-BR') : 'N/A'}</span></div>
-                    <div><span className="block text-emerald-500 text-xs uppercase font-bold mb-1">Horário</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-emerald-100 block">{selectedRequest.eventTime || 'N/A'}</span></div>
-                    <div><span className="block text-emerald-500 text-xs uppercase font-bold mb-1">Local</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-emerald-100 block">{selectedRequest.eventLocation || 'N/A'}</span></div>
-                    <div><span className="block text-emerald-500 text-xs uppercase font-bold mb-1">Quantidade de itens</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-emerald-100 block">{selectedRequest.itemQuantity ?? 'N/A'}</span></div>
-                    <div><span className="block text-emerald-500 text-xs uppercase font-bold mb-1">Produto desejado</span><span className="font-medium bg-white px-3 py-1.5 rounded border border-emerald-100 block">{selectedRequest.desiredProduct || 'N/A'}</span></div>
-                  </div>
-                  <div>
-                    <span className="block text-emerald-500 text-xs uppercase font-bold mb-1">Finalidade</span>
-                    <p className="font-medium bg-white px-3 py-2 rounded border border-emerald-100">{selectedRequest.eventPurpose || 'N/A'}</p>
-                  </div>
-                  {selectedRequest.actionOfficeUrl && (
-                    <a href={selectedRequest.actionOfficeUrl} target="_blank" className="inline-flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-emerald-200 text-emerald-700 font-bold text-sm hover:bg-emerald-100 transition">
-                      <FileText size={16}/> Ver Ofício da Ação
-                    </a>
-                  )}
-                </div>
-              )}
-
-              {/* DADOS PIX */}
-              {selectedPayment && (
-                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                  <h4 className="font-bold text-blue-800 mb-3 flex items-center gap-2"><Wallet size={16}/> Dados para Pagamento (PIX)</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-blue-900">
-                    <div><span className="block text-blue-400 text-xs uppercase font-bold">Chave PIX</span><span className="font-medium">{selectedPayment.pixKey || 'N/A'}</span></div>
-                    <div><span className="block text-blue-400 text-xs uppercase font-bold">Titular</span><span className="font-medium">{selectedPayment.pixHolder || 'N/A'}</span></div>
-                    <div><span className="block text-blue-400 text-xs uppercase font-bold">CPF do Titular</span><span className="font-medium">{selectedPayment.pixCpf || 'N/A'}</span></div>
-                  </div>
-                </div>
-              )}
-
-              {selectedRequest.days > 1 && selectedRequest.justification && (
-                <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
-                  <h4 className="font-bold text-orange-800 text-xs uppercase mb-1 flex items-center gap-1"><AlertTriangle size={12}/> Justificativa (+1 dia)</h4>
-                  <p className="text-gray-800 text-sm italic">"{selectedRequest.justification}"</p>
-                </div>
-              )}
-
-              {!EVENT_LIKE_TYPES.includes(selectedRequest.requestType || '') && (
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="font-bold text-gray-700 mb-3 flex items-center gap-2"><Camera size={16}/> Fotos</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {(selectedRequest.photoUrls || []).map((url, i) => (
-                        <a key={i} href={url} target="_blank" className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded text-sm text-blue-600 border border-gray-200"><Eye size={14}/> Foto {i+1}</a>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-gray-700 mb-3 flex items-center gap-2"><FileText size={16}/> Comprovantes</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {(selectedRequest.receiptUrls || []).map((url, i) => (
-                        <a key={i} href={url} target="_blank" className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded text-sm text-blue-600 border border-gray-200"><Eye size={14}/> Nota {i+1}</a>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {selectedRequest.salesReports && selectedRequest.salesReports.length > 0 && (
-                <div>
-                  <h4 className="font-bold text-gray-700 mb-3 border-b pb-2 flex items-center gap-2">
-                    <ShoppingBag size={18} className="text-pink-500"/> Relatórios de Vendas (Degustadora)
-                  </h4>
-                  <div className="bg-gray-50 rounded-lg p-2 max-h-60 overflow-y-auto border border-gray-100">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="text-gray-400 text-left border-b border-gray-200">
-                          <th className="pb-2 pl-2">Data</th>
-                          <th className="pb-2">Vendedor</th>
-                          <th className="pb-2">Loja</th>
-                          <th className="pb-2">Produtos Vendidos</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {selectedRequest.salesReports.map((r, idx) => (
-                          <tr key={idx} className="hover:bg-white transition">
-                            <td className="py-3 pl-2 font-medium text-gray-700 align-top">{new Date(r.date).toLocaleDateString()}</td>
-                            <td className="py-3 text-gray-600 align-top">{r.sellerName}</td>
-                            <td className="py-3 text-gray-600 align-top">{r.storeName}</td>
-                            <td className="py-3 align-top">
-                              <div className="flex flex-wrap gap-1">
-                                {r.products.filter(p => p.qty > 0).map((p, i) => (
-                                  <span key={i} className="inline-block bg-white border border-gray-200 px-2 py-0.5 rounded text-[10px] text-gray-500">
-                                    {p.name}: <strong className="text-pink-600">{p.qty}</strong>
-                                  </span>
-                                ))}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="p-4 bg-gray-50 border-t rounded-b-2xl flex justify-end">
-              <button onClick={() => { setSelectedRequest(null); setAdminSupplier(''); }} className="bg-gray-800 text-white px-6 py-2 rounded hover:bg-black font-bold">FECHAR</button>
-            </div>
-          </div>
-        </div>
+      {selected && (
+        <RequestDetailsModal
+          key={selected.id}
+          request={selected}
+          payment={selectedPayment}
+          onClose={() => setSelected(null)}
+          onSaveSupplier={handleSaveSupplier}
+        />
       )}
     </div>
   );

@@ -1,10 +1,19 @@
-import { collection, getDocs, doc, getDoc, writeBatch, deleteField, serverTimestamp } from "firebase/firestore";
-import { db } from "../firebaseConfig";
+import { collection, getDocs, doc, getDoc, writeBatch, deleteField, serverTimestamp, addDoc } from "firebase/firestore";
+import { db, auth } from "../firebaseConfig";
 
 const BACKUP_COLLECTIONS = ['requests', 'budgets', 'products', 'showcase', 'codes'];
 
 // Firestore limita 500 operações por lote; deixamos folga.
 const BATCH_LIMIT = 450;
+
+/** Registro de ações sensíveis do gestor (exportações, backups). Não interrompe o fluxo se falhar. */
+export const logAdminEvent = async (action: string, details: Record<string, unknown>) => {
+  try {
+    await addDoc(collection(db, 'logs'), { action, details, by: auth.currentUser?.email || 'desconhecido', at: serverTimestamp() });
+  } catch (e) {
+    console.warn('Não foi possível registrar o log', e);
+  }
+};
 
 export const downloadBackup = async () => {
   const backup: Record<string, unknown[]> = {};

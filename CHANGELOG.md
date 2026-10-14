@@ -12,7 +12,7 @@ N1 Crítica · N2 Maior · N3 Menor · N4 Correção · N5 Documentação
 ---
 
 ## [2.1.1] – 2026-10-14 · N3 Menor
-**Deploy:** pendente (aguarda confirmação) · **Autor:** Mateus Silva (com Claude)
+**Deploy:** commit 0981da4 (2026-10-14) · **Autor:** Mateus Silva (com Claude)
 **Resumo:** migração visual completa para o design system Junco (PADROES-JUNCO.md §3, referência Captação de Tendências), em todas as telas: cabeçalho branco com a faixa arco-íris de 6px; títulos Barlow Semi Condensed em maiúsculas; botões padrão/primário (navy)/perigoso (rosa) com raio 4px; inputs 13,5px; cards com borda 1px e raio 6px, sem sombras pesadas nem gradientes; badges em pílula (raio 20px) com cores semânticas (ok, erro, info, destaque); tabela com cabeçalho #F6F5F1 e borda navy, hover #FBF6E9; abas com sublinhado laranja e contador amarelo; modais com overlay navy, animação curta, Esc e foco; toast de erro fica até ser fechado (máx. 3); KPIs com números que contam até o valor; vitrine sem autoplay (grade paginada); CSS de acessibilidade (foco visível, movimento reduzido, alvos de 44px no toque, seleção amarela). Classes do padrão centralizadas em `index.css` (`.btn`, `.card`, `.badge`, `.input`, `.table`, `.tab`...).
 **Arquivos:** index.css, App.tsx, HomeMenu.tsx, TradeShowcase.tsx, RequestWizard.tsx, CustomizationWizard.tsx, EventsWizard.tsx, PromoterPanel.tsx, RCAPanel.tsx, ExecutionView.tsx, AdminPanel.tsx, admin/* (shared, OverviewTab, RequestsTab, FinanceTab, SettingsTab, RequestDetailsModal), shared/StatusBadge.tsx, shared/ConfirmModal.tsx, shared/OptionSelect.tsx, shared/Toast.tsx, shared/Wizard.tsx (novo), shared/CountUp.tsx (novo)
 **Impacto em dados:** Não
@@ -20,7 +20,7 @@ N1 Crítica · N2 Maior · N3 Menor · N4 Correção · N5 Documentação
 **Pendências/Riscos:** nenhuma regra de negócio alterada.
 
 ## [2.1.0] – 2026-10-13 · N2 Maior
-**Deploy:** pendente (aguarda confirmação) · **Autor:** Mateus Silva (com Claude)
+**Deploy:** commit acb0da2 (2026-10-13) · **Autor:** Mateus Silva (com Claude)
 **Resumo:**
 - **Painel do gestor redesenhado** (pedido da usuária): de 9 abas para 4 – Visão Geral, Solicitações (lista única com **busca global** em todas as situações + filtros por situação e tipo), Financeiro (degustações a pagar + Personalização/Evento/Ação Social "aguardando recibo", com "Anexar recibo e concluir") e Configurações (Orçamentos e Produtos). Botão **Reabrir** para vencidos.
 - **Personalização** (pedido da usuária): novos campos *Localização na loja* e *Fluxo de pessoas* (escolha única), mínimo de **2 fotos**, rótulos "Categoria de Produtos no Espaço" e "fornecedor de comunicação visual".

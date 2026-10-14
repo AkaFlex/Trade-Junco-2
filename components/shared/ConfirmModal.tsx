@@ -1,7 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, HelpCircle } from 'lucide-react';
 
-// Substitui window.confirm (padrão P2 da empresa).
+// Modal de confirmação do padrão Junco (PADROES-JUNCO.md §3.4) — substitui window.confirm.
 // Uso: const confirm = useConfirm(); if (await confirm({ title: '...', message: '...' })) { ... }
 
 export interface ConfirmOptions {
@@ -26,8 +25,10 @@ export const ConfirmProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [opts, setOpts] = useState<ConfirmOptions | null>(null);
   const resolver = useRef<((v: boolean) => void) | null>(null);
   const confirmBtn = useRef<HTMLButtonElement>(null);
+  const opener = useRef<Element | null>(null);
 
   const confirm = useCallback<ConfirmFn>((o) => new Promise<boolean>(resolve => {
+    opener.current = document.activeElement;
     resolver.current = resolve;
     setOpts(o);
   }), []);
@@ -36,6 +37,7 @@ export const ConfirmProvider: React.FC<{ children: React.ReactNode }> = ({ child
     resolver.current?.(value);
     resolver.current = null;
     setOpts(null);
+    (opener.current as HTMLElement | null)?.focus?.();
   }, []);
 
   useEffect(() => {
@@ -50,35 +52,13 @@ export const ConfirmProvider: React.FC<{ children: React.ReactNode }> = ({ child
     <ConfirmContext.Provider value={confirm}>
       {children}
       {opts && (
-        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 p-4" onClick={() => close(false)}>
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="confirm-title"
-            className="bg-white w-full max-w-md rounded-md border border-line shadow-modal"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="p-6 flex gap-4">
-              <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${opts.danger ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-navy'}`}>
-                {opts.danger ? <AlertTriangle size={20} /> : <HelpCircle size={20} />}
-              </div>
-              <div className="min-w-0">
-                <h2 id="confirm-title" className="font-condensed font-bold uppercase tracking-wide text-navy text-lg">{opts.title}</h2>
-                {opts.message && <div className="text-sm text-gray-600 mt-1 leading-relaxed">{opts.message}</div>}
-              </div>
-            </div>
-            <div className="px-6 pb-6 flex justify-end gap-2">
-              <button
-                onClick={() => close(false)}
-                className="px-4 py-2 rounded border border-line text-gray-700 font-condensed font-semibold uppercase tracking-wide text-sm hover:bg-gray-50"
-              >
-                {opts.cancelLabel || 'Cancelar'}
-              </button>
-              <button
-                ref={confirmBtn}
-                onClick={() => close(true)}
-                className={`px-4 py-2 rounded text-white font-condensed font-semibold uppercase tracking-wide text-sm ${opts.danger ? 'bg-red-600 hover:bg-red-700' : 'bg-navy hover:opacity-90'}`}
-              >
+        <div className="overlay z-[9998] items-center" onClick={() => close(false)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="confirm-title" className="modal max-w-[420px]" onClick={e => e.stopPropagation()}>
+            <div className="modal-head"><h2 id="confirm-title">{opts.title}</h2></div>
+            {opts.message && <div className="px-6 pt-5 pb-1.5 text-[14px] leading-relaxed">{opts.message}</div>}
+            <div className="modal-foot border-t-0">
+              <button onClick={() => close(false)} className="btn">{opts.cancelLabel || 'Cancelar'}</button>
+              <button ref={confirmBtn} onClick={() => close(true)} className={opts.danger ? 'btn-danger' : 'btn-primary'}>
                 {opts.confirmLabel || 'Confirmar'}
               </button>
             </div>

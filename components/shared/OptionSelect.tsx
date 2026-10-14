@@ -59,16 +59,16 @@ export function OptionSelect<T extends string>({ value, options, onChange, place
         aria-controls={listId}
         onClick={() => { setOpen(o => !o); setActive(Math.max(0, items.findIndex(o => o.value === value))); }}
         onKeyDown={onKeyDown}
-        className="w-full flex items-center justify-between gap-2 bg-white border border-line rounded-md px-3 py-2.5 text-left text-gray-800 font-medium focus:outline-none focus:ring-2 focus:ring-navy/30"
+        className={`w-full flex items-center justify-between gap-2 bg-white border rounded px-2.5 py-[9px] text-left text-[13.5px] transition-colors duration-150 hover:border-navy focus:outline-none ${open ? 'border-navy' : 'border-line'}`}
       >
-        <span className={selected ? '' : 'text-gray-400'}>{selected?.label ?? placeholder}</span>
-        <ChevronDown size={16} className={`shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <span className={`truncate ${selected ? 'text-[#2A3348]' : 'text-[#9AA1B0]'}`}>{selected?.label ?? placeholder}</span>
+        <ChevronDown size={14} className={`shrink-0 text-muted transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-40 mt-1 w-full max-h-64 overflow-auto bg-white border border-line rounded-md shadow-modal py-1"
+          className="absolute z-40 mt-1 w-full max-h-64 overflow-auto bg-white border border-line rounded shadow-modal py-1"
         >
           {items.map((o, i) => (
             <li
@@ -78,7 +78,7 @@ export function OptionSelect<T extends string>({ value, options, onChange, place
               onMouseDown={e => e.preventDefault()}
               onClick={() => choose(o.value)}
               onMouseEnter={() => setActive(i)}
-              className={`px-3 py-2 text-sm cursor-pointer flex items-center justify-between ${i === active ? 'bg-paper' : ''} ${o.value === value ? 'font-semibold text-navy' : 'text-gray-700'}`}
+              className={`px-2.5 py-2 text-[13.5px] cursor-pointer flex items-center justify-between ${i === active ? 'bg-[#FBF6E9]' : ''} ${o.value === value ? 'font-semibold text-navy' : 'text-[#2A3348]'}`}
             >
               {o.label}
               {o.value === value && <Check size={14} />}
@@ -101,7 +101,7 @@ export function OptionButtons<T extends string>({ value, options, onChange, aria
           role="radio"
           aria-checked={o.value === value}
           onClick={() => onChange(o.value)}
-          className={`px-3 py-2 rounded-md border text-sm font-semibold transition ${o.value === value ? 'bg-navy text-white border-navy' : 'bg-white text-gray-600 border-line hover:bg-paper'}`}
+          className={o.value === value ? 'chip chip-active' : 'chip'}
         >
           {o.label}
         </button>

@@ -6,6 +6,7 @@ import { ExecutionView } from './ExecutionView';
 import { StatusBadge } from './shared/StatusBadge';
 import { FileText, AlertCircle, Search, FileSpreadsheet, Eye, Calendar } from 'lucide-react';
 import { useToast } from './shared/Toast';
+import { TypeBadge, isEventLike, formatDateBR } from './admin/shared';
 
 interface Props {
   user: UserProfile | null;
@@ -60,149 +61,87 @@ export const RCAPanel: React.FC<Props> = ({ user }) => {
   }
 
   return (
-    <div className="p-4 md:p-8 max-w-5xl mx-auto animate-in fade-in duration-500">
-
-      {/* Hero Section */}
-      <div className="bg-gradient-to-r from-brand-purple to-purple-900 rounded-md p-6 md:p-8 text-white shadow-sm mb-10 flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-        <div className="text-center md:text-left relative z-10">
-          <h1 className="text-2xl md:text-3xl font-extrabold mb-2">Reembolsos & Histórico</h1>
-          <p className="text-purple-100 opacity-90 text-sm md:text-base">Acompanhe suas solicitações e envie os dados do Reembolso Financeiro.</p>
-        </div>
+    <div className="page-narrow view-in space-y-4">
+      <div>
+        <h1 className="page-title">Minhas solicitações</h1>
+        <p className="page-sub">Acompanhe suas solicitações e envie os dados do reembolso.</p>
       </div>
 
-      {/* History Search Section */}
-      <div className="mb-8 bg-white p-6 rounded-md shadow-sm border border-gray-100">
-        <div className="flex items-center gap-2 mb-4 text-gray-700">
-          <Search className="text-purple-600" />
-          <h2 className="text-lg font-bold">Localizar Solicitação</h2>
-        </div>
-        <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4">
+      <form onSubmit={handleSearch} className="card p-4">
+        <label htmlFor="rca-code" className="label">Código da ação</label>
+        <div className="flex flex-col md:flex-row gap-3">
           <input
+            id="rca-code"
             type="text"
-            placeholder="Código da Ação (Ex: TJ-7KQ4M9X2PA)"
-            className="flex-1 border-2 border-gray-100 bg-gray-50 p-4 rounded-md focus:ring-2 focus:ring-purple-600 focus:bg-white outline-none font-bold text-gray-700 transition"
+            placeholder="Ex: TJ-7KQ4M9X2PA"
+            className="input md:flex-1 uppercase font-semibold text-[15px]"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
+            autoCapitalize="characters"
           />
-          <button type="submit" disabled={loadingSearch} className="bg-gray-900 text-white px-8 py-4 rounded-md hover:bg-black transition font-bold flex items-center justify-center gap-2 disabled:opacity-60">
-            <Search size={20} /> {loadingSearch ? 'Buscando...' : 'BUSCAR'}
+          <button type="submit" disabled={loadingSearch} className="btn-primary">
+            <Search size={16} /> {loadingSearch ? 'Buscando...' : 'Buscar'}
           </button>
-        </form>
-        <p className="text-xs text-gray-400 mt-3 font-medium">Por segurança, a busca é feita só pelo código recebido ao criar a solicitação.</p>
-      </div>
+        </div>
+        <p className="hint mt-2">Por segurança, a busca é feita só pelo código recebido ao criar a solicitação.</p>
+      </form>
 
-      <div className="grid gap-4">
-        {!searched ? (
-          <div className="text-center py-12 bg-gray-50 rounded-md border border-dashed border-gray-300">
-            <p className="text-gray-400">Utilize a busca acima para encontrar solicitações.</p>
-          </div>
-        ) : requests.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-md shadow-sm border border-gray-100">
-            <div className="text-gray-300 mb-4">
-              <Search size={48} className="mx-auto" />
-            </div>
-            <p className="text-gray-500 font-medium">Nenhuma solicitação encontrada para <span className="text-gray-800 font-bold">{searchQuery}</span>.</p>
-          </div>
-        ) : (
-          requests.map(req => (
-            <div key={req.id} className="bg-white p-6 rounded-md shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 transition-all duration-200 group relative overflow-hidden">
-              {/* Status Color Strip */}
-              <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
-                req.status === 'paid'           ? 'bg-emerald-500' :
-                req.status === 'approved'       ? 'bg-blue-500'    :
-                req.status === 'rejected'       ? 'bg-red-500'     :
-                req.status === 'completed'      ? 'bg-purple-500'  :
-                req.status === 'blocked_volume' ? 'bg-gray-400'    :
-                req.status === 'expired'        ? 'bg-gray-600'    :
-                'bg-yellow-400'
-              }`}></div>
+      {!searched ? (
+        <div className="card empty">Use a busca acima para encontrar sua solicitação.</div>
+      ) : requests.length === 0 ? (
+        <div className="card empty">Nenhuma solicitação encontrada para <strong className="text-navy">{searchQuery}</strong>.</div>
+      ) : (
+        requests.map(req => (
+          <div key={req.id} className="card p-5 view-in">
+            <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+              <div className="flex-1 space-y-2 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-condensed font-black text-xl text-navy">{req.tradeCode || 'Sem código'}</span>
+                  <TypeBadge request={req} />
+                  <span className="badge">{req.region}</span>
+                </div>
+                <p className="text-[13.5px] text-navy">Parceiro: <strong>{req.partnerCode}</strong></p>
 
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pl-4">
-                <div className="flex-1 space-y-2 w-full">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="font-black text-purple-700 text-xl">{req.tradeCode || 'S/ Código'}</span>
-                    <span className="font-bold text-gray-800 text-base border-l-2 pl-3 border-gray-200">Parceiro: {req.partnerCode}</span>
-                    <span className="text-gray-500 text-xs font-bold bg-gray-100 px-2 py-1 rounded-md">{req.region}</span>
-                    {req.requestType === 'personalizacao' && (
-                        <span className="text-white text-xs font-bold bg-brand-purple px-2 py-1 rounded-md ml-auto">PERSONALIZAÇÃO</span>
-                    )}
-                    {req.requestType === 'evento' && (
-                        <span className="text-white text-xs font-bold bg-amber-500 px-2 py-1 rounded-md ml-auto">EVENTO</span>
-                    )}
-                    {req.requestType === 'acao_social' && (
-                        <span className="text-white text-xs font-bold bg-emerald-500 px-2 py-1 rounded-md ml-auto">AÇÃO SOCIAL</span>
-                    )}
-                  </div>
-
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted">
                   {(req.requestType === 'evento' || req.requestType === 'acao_social') ? (
-                    <div className="flex flex-wrap items-center gap-3 md:gap-4 text-sm text-gray-500 mt-2">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar size={16} className="text-gray-400"/>
-                        <span className="text-gray-700 font-medium">Local: {req.eventLocation || 'N/A'}</span>
-                      </div>
-                      <span className="hidden md:inline text-gray-200">•</span>
-                      <div className="flex items-center gap-1.5 bg-purple-50 px-2 py-0.5 rounded text-purple-700 font-bold border border-purple-100">
-                        <span>Horário: {req.eventTime || 'N/A'}</span>
-                      </div>
-                    </div>
-                  ) : req.requestType !== 'personalizacao' ? (
-                    <div className="flex flex-wrap items-center gap-3 md:gap-4 text-sm text-gray-500 mt-2">
-                       <div className="flex items-center gap-1.5" title="Data do Pedido">
-                        <FileSpreadsheet size={16} className="text-gray-400"/>
-                        <span className="text-gray-700 font-medium">Pedido: {req.orderDate ? new Date(req.orderDate + 'T12:00:00').toLocaleDateString('pt-BR') : 'N/A'}</span>
-                      </div>
-                      <span className="hidden md:inline text-gray-200">•</span>
-                      <div className="flex items-center gap-1.5">
-                        <Calendar size={16} className="text-gray-400"/>
-                        <span className="text-gray-700 font-medium">Ação: {new Date(req.dateOfAction + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
-                      </div>
-                      <span className="hidden md:inline text-gray-200">•</span>
-                      <div className="flex items-center gap-1.5 bg-purple-50 px-2 py-0.5 rounded text-purple-700 font-bold border border-purple-100">
-                        <span>{req.days} dia(s)</span>
-                      </div>
-                    </div>
+                    <>
+                      <span className="flex items-center gap-1.5"><Calendar size={14} /> {formatDateBR(req.dateOfAction)}</span>
+                      <span>Local: {req.eventLocation || '—'}</span>
+                      <span>Horário: {req.eventTime || '—'}</span>
+                    </>
+                  ) : req.requestType === 'personalizacao' ? (
+                    <>
+                      <span>Espaço: {req.customizationSpace}</span>
+                      <span>Categoria: {req.brandCategory}</span>
+                    </>
                   ) : (
-                    <div className="flex flex-wrap items-center gap-3 md:gap-4 text-sm text-gray-500 mt-2">
-                      <div className="flex items-center gap-1.5">
-                         <span className="text-gray-700 font-bold">Espaço: {req.customizationSpace}</span>
-                      </div>
-                      <span className="hidden md:inline text-gray-200">•</span>
-                      <div className="flex items-center gap-1.5 bg-purple-50 px-2 py-0.5 rounded text-purple-700 font-bold border border-purple-100">
-                        <span>{req.brandCategory}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {req.rejectionReason && (
-                    <div className="mt-2 flex items-start gap-2 bg-gray-50 text-gray-600 text-xs p-3 rounded-lg border border-gray-100 max-w-lg">
-                      <AlertCircle size={14} className="mt-0.5 shrink-0"/>
-                      <span><strong>Motivo:</strong> {req.rejectionReason}</span>
-                    </div>
+                    <>
+                      <span className="flex items-center gap-1.5"><FileSpreadsheet size={14} /> Pedido: {formatDateBR(req.orderDate) || '—'}</span>
+                      <span className="flex items-center gap-1.5"><Calendar size={14} /> Ação: {formatDateBR(req.dateOfAction)}</span>
+                      <span>{req.days} dia(s)</span>
+                    </>
                   )}
                 </div>
 
-                <div className="flex flex-row md:flex-col items-center md:items-end gap-3 w-full md:w-auto justify-between md:justify-center">
-                  <StatusBadge status={req.status} variant="rca" requestType={req.requestType} />
+                {req.rejectionReason && (
+                  <div className={req.status === 'rejected' ? 'notice-error' : 'notice'}>
+                    <AlertCircle size={14} className="inline mr-1.5 -mt-0.5" /><strong>Motivo:</strong> {req.rejectionReason}
+                  </div>
+                )}
+              </div>
 
-                  {(req.status === 'approved' || req.status === 'completed') && !['personalizacao', 'evento', 'acao_social'].includes(req.requestType || '') && (
-                    <button
-                      onClick={() => handleOpenExecution(req)}
-                      className={`text-sm px-6 py-3 rounded-md transition flex items-center justify-center gap-2 shadow-sm font-bold w-full md:w-auto mt-2 md:mt-0 ${req.status === 'approved' ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-gray-800 text-white hover:bg-black'}`}
-                    >
-                      {req.status === 'approved' ? (
-                        <><FileText size={16}/> Solicitar Reembolso</>
-                      ) : (
-                        <><Eye size={16}/> Ver Resumo Financeiro</>
-                      )}
-                    </button>
-                  )}
-                </div>
+              <div className="flex flex-row md:flex-col items-center md:items-end gap-3 w-full md:w-auto justify-between">
+                <StatusBadge status={req.status} variant="rca" requestType={req.requestType} />
+                {(req.status === 'approved' || req.status === 'completed') && !isEventLike(req) && (
+                  <button onClick={() => handleOpenExecution(req)} className={req.status === 'approved' ? 'btn-primary' : 'btn'}>
+                    {req.status === 'approved' ? <><FileText size={15} /> Solicitar reembolso</> : <><Eye size={15} /> Ver resumo</>}
+                  </button>
+                )}
               </div>
             </div>
-          ))
-        )}
-      </div>
+          </div>
+        ))
+      )}
     </div>
   );
 };

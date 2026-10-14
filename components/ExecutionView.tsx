@@ -136,227 +136,131 @@ export const ExecutionView: React.FC<Props> = ({ request: initialRequest, onBack
     }
   };
 
+  const done = request.status === 'completed' || request.status === 'paid';
+
+  const UploadBox: React.FC<{ type: 'photo' | 'receipt'; title: string; hint: string; icon: React.ReactNode; urls: string[]; label: string }> = ({ type, title, hint, icon, urls, label }) => (
+    <div className="card p-5">
+      <h3 className="section-title flex items-center gap-2 mb-1">{icon}{title}</h3>
+      <p className="hint mb-3">{hint}</p>
+      {!isReadOnly && (
+        <label className={`flex items-center justify-center gap-2 border border-dashed border-line rounded bg-paper p-4 text-navy cursor-pointer transition-colors duration-150 hover:border-navy ${uploading ? 'opacity-60 cursor-default' : ''}`}>
+          <input
+            type="file"
+            className="sr-only"
+            accept={type === 'photo' ? acceptAttr(['image']) : acceptAttr(['image', 'pdf'])}
+            multiple
+            disabled={uploading}
+            onChange={(e) => handleFileUpload(e, type)}
+          />
+          <UploadCloud size={18} />
+          <span className="font-condensed font-bold text-[12.5px] uppercase tracking-[.3px]">Selecionar arquivos</span>
+        </label>
+      )}
+      {urls.length > 0 && (
+        <div className="mt-3">
+          <span className="badge-ok mb-2"><CheckCircle size={12} /> {urls.length} enviado(s)</span>
+          <ul className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+            {urls.map((url, i) => (
+              <li key={url + i}>
+                <a href={url} target="_blank" rel="noreferrer" className="text-[13px] hover:underline flex items-center gap-1.5"><ImageIcon size={13} /> {label} {i + 1}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <div className="max-w-4xl mx-auto py-6 px-4">
-      {/* HEADER */}
-      <div className="flex items-center gap-4 mb-6">
-        <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full transition">
-          <ArrowLeft size={24} className="text-gray-700"/>
-        </button>
+    <div className="page-narrow view-in space-y-4">
+      <div className="flex items-start gap-3">
+        <button onClick={onBack} className="iconbtn mt-1" aria-label="Voltar"><ArrowLeft size={18} /></button>
         <div>
-           <div className="flex flex-wrap items-center gap-2">
-             <h1 className="text-xl md:text-2xl font-bold text-white bg-purple-700 px-4 py-1 rounded-lg inline-block">Solicitar Reembolso</h1>
-             {isReadOnly && (
-                 <span className="bg-gray-800 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
-                     <Lock size={12}/> Travado
-                 </span>
-             )}
-           </div>
-           <p className="text-gray-500 text-sm mt-1">Parceiro: {request.partnerCode} | Região: {request.region}</p>
+          <h1 className="page-title flex items-center gap-2 flex-wrap">
+            Solicitar reembolso
+            {isReadOnly && <span className="badge-dark"><Lock size={11} /> Travado</span>}
+          </h1>
+          <p className="page-sub">{request.tradeCode} · Parceiro {request.partnerCode} · {request.region}</p>
         </div>
       </div>
 
       {isReadOnly && (
-          <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6 rounded shadow-sm">
-            <div className="flex items-center gap-3">
-              <CheckCircle className="text-yellow-600 shrink-0" size={24} />
-              <div>
-                {request.status === 'completed' || request.status === 'paid' ? (
-                  <>
-                    <p className="text-yellow-800 font-bold">Solicitação Finalizada</p>
-                    <p className="text-yellow-700 text-sm">
-                        Você já enviou todos os dados. O processo está agora aguardando pagamento pelo setor financeiro.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-yellow-800 font-bold">Reembolso indisponível</p>
-                    <p className="text-yellow-700 text-sm">
-                        Esta solicitação não está em execução{request.rejectionReason ? `: ${request.rejectionReason}` : '.'} Fale com o gestor de Trade.
-                    </p>
-                  </>
-                )}
-              </div>
-            </div>
+        done ? (
+          <div className="notice-ok" role="status">
+            <p className="font-semibold">Solicitação finalizada</p>
+            <p>Você já enviou todos os dados. Agora é só aguardar o pagamento pelo setor financeiro.</p>
           </div>
+        ) : (
+          <div className="notice-warn" role="status">
+            <p className="font-semibold">Reembolso indisponível</p>
+            <p>Esta solicitação não está em execução{request.rejectionReason ? `: ${request.rejectionReason}` : '.'} Fale com o gestor de Trade.</p>
+          </div>
+        )
       )}
 
+      {currentReports.length > 0 && (
+        <div className="card">
+          <div className="card-head"><h3 className="section-title flex items-center gap-2"><CheckCircle size={16} /> Relatórios de Sell-Out da degustadora</h3></div>
+          <ul className="divide-y divide-line">
+            {currentReports.map((r, i) => (
+              <li key={i} className="px-5 py-3 flex flex-col md:flex-row justify-between md:items-center gap-2">
+                <div>
+                  <div className="font-semibold text-navy">{r.storeName}</div>
+                  <div className="text-[12.5px] text-muted">{new Date(r.date).toLocaleDateString('pt-BR')} · Vendedor: {r.sellerName}</div>
+                </div>
+                <span className="badge-ok">Enviado</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
+      {!isReadOnly && (
+        <div className="notice-info flex items-start gap-2">
+          <Clock size={16} className="mt-0.5 shrink-0" />
+          <span>Preencha os dados PIX, anexe as fotos da ação e as notas fiscais (imagem ou PDF). Dá para selecionar vários arquivos de uma vez.</span>
+        </div>
+      )}
 
-      {/* FINANCE & EVIDENCE VIEW */}
-      <div className="animate-in fade-in space-y-6">
-          
-          {/* Read Only view of Sell-Out Reports */}
-          {currentReports.length > 0 && (
-              <div className="bg-white p-6 rounded-md shadow-sm border border-gray-100">
-                  <h4 className="font-bold text-gray-700 mb-3 border-b pb-2 flex items-center gap-2">
-                      <CheckCircle size={18} className="text-green-600"/>
-                      Relatórios de Sell-Out da Degustadora
-                  </h4>
-                  <div className="space-y-3">
-                      {currentReports.map((r, i) => (
-                          <div key={i} className="flex flex-col md:flex-row justify-between items-start md:items-center text-sm bg-gray-50 p-3 rounded-lg gap-2">
-                              <div>
-                                  <div className="font-bold text-gray-800">{r.storeName}</div>
-                                  <div className="text-xs text-gray-500">{new Date(r.date).toLocaleDateString()} • Vendedor: {r.sellerName}</div>
-                              </div>
-                              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-bold shrink-0">Enviado</span>
-                          </div>
-                      ))}
-                  </div>
-              </div>
-          )}
-
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 flex items-start gap-3">
-              <div className="bg-blue-100 p-2 rounded-full text-blue-600 shrink-0"><Clock size={20}/></div>
-              <div>
-                  <p className="text-blue-800 text-sm font-medium leading-relaxed">
-                     Preencha os dados PIX para reembolso, anexe as fotos da ação e as notas fiscais (imagem ou PDF). 
-                     Você pode selecionar várias fotos de uma vez.
-                  </p>
-              </div>
+      <div className="card p-5">
+        <h3 className="section-title flex items-center gap-2 mb-3"><Wallet size={16} /> Dados bancários (para reembolso)</h3>
+        <div className="grid md:grid-cols-3 gap-4">
+          <div>
+            <label htmlFor="ex-pix" className="label">Chave PIX</label>
+            <input id="ex-pix" className="input" value={pixData.key} onChange={e => setPixData({ ...pixData, key: e.target.value })} disabled={isReadOnly} />
           </div>
-
-          <div className="bg-white p-6 rounded-md shadow-sm border border-gray-100">
-              <h3 className="font-bold text-gray-800 mb-4 uppercase text-sm flex items-center gap-2">
-                  <Wallet size={16}/> Dados Bancários (Para Reembolso)
-              </h3>
-              <div className="space-y-4">
-                  <div>
-                      <label className="text-xs font-bold text-gray-400 uppercase">Chave PIX</label>
-                      <input 
-                        className="w-full border p-3 rounded-lg mt-1 focus:ring-2 focus:ring-brand-red outline-none disabled:bg-gray-100 disabled:text-gray-500"
-                        value={pixData.key}
-                        onChange={e => setPixData({...pixData, key: e.target.value})}
-                        disabled={isReadOnly}
-                      />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                          <label className="text-xs font-bold text-gray-400 uppercase">Nome Titular</label>
-                          <input 
-                            className="w-full border p-3 rounded-lg mt-1 focus:ring-2 focus:ring-brand-red outline-none disabled:bg-gray-100 disabled:text-gray-500"
-                            value={pixData.holder}
-                            onChange={e => setPixData({...pixData, holder: e.target.value})}
-                            disabled={isReadOnly}
-                          />
-                      </div>
-                      <div>
-                          <label className="text-xs font-bold text-gray-400 uppercase">CPF Titular</label>
-                          <input 
-                            className="w-full border p-3 rounded-lg mt-1 focus:ring-2 focus:ring-brand-red outline-none disabled:bg-gray-100 disabled:text-gray-500"
-                            value={pixData.cpf}
-                            onChange={handleCpfChange}
-                            maxLength={14}
-                            disabled={isReadOnly}
-                          />
-                      </div>
-                  </div>
-              </div>
+          <div>
+            <label htmlFor="ex-holder" className="label">Nome do titular</label>
+            <input id="ex-holder" className="input" value={pixData.holder} onChange={e => setPixData({ ...pixData, holder: e.target.value })} disabled={isReadOnly} />
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* PHOTOS UPLOAD */}
-              <div className="bg-white p-6 rounded-md shadow-sm border border-gray-100 border-dashed relative">
-                  <div className="text-center">
-                      <div className="bg-gray-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 text-gray-500">
-                          <Camera size={24} />
-                      </div>
-                      <h4 className="font-bold text-gray-700">Foto da Ação</h4>
-                      <p className="text-xs text-gray-400 mb-4">Selecione todas as fotos da ação</p>
-                      
-                      {!isReadOnly && (
-                          <label className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-bold cursor-pointer transition text-sm inline-block w-full">
-                              Selecionar Fotos
-                              <input 
-                                type="file" 
-                                className="hidden" 
-                                accept="image/*" 
-                                multiple
-                                onChange={(e) => handleFileUpload(e, 'photo')}
-                              />
-                          </label>
-                      )}
-
-                      {uploadedPhotos.length > 0 && (
-                          <div className="mt-4 text-left space-y-2 max-h-40 overflow-y-auto">
-                              <p className="text-xs font-bold text-green-600 mb-1 flex items-center gap-1">
-                                  <CheckCircle size={12}/> {uploadedPhotos.length} fotos enviadas
-                              </p>
-                              {uploadedPhotos.map((url, i) => (
-                                  <a key={i} href={url} target="_blank" rel="noreferrer" className="block text-xs text-blue-500 hover:underline truncate">
-                                      <ImageIcon size={10} className="inline mr-1"/> Foto {i + 1}
-                                  </a>
-                              ))}
-                          </div>
-                      )}
-                  </div>
-              </div>
-
-              {/* RECEIPTS UPLOAD */}
-              <div className="bg-white p-6 rounded-md shadow-sm border border-gray-100 border-dashed relative">
-                  <div className="text-center">
-                      <div className="bg-gray-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 text-gray-500">
-                          <UploadCloud size={24} />
-                      </div>
-                      <h4 className="font-bold text-gray-700">Comprovante</h4>
-                      <p className="text-xs text-gray-400 mb-4">Notas Fiscais de custos (imagem ou PDF)</p>
-                      
-                      {!isReadOnly && (
-                          <label className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-bold cursor-pointer transition text-sm inline-block w-full">
-                              Selecionar Arquivos
-                              <input 
-                                type="file" 
-                                className="hidden" 
-                                accept={acceptAttr(['image', 'pdf'])} 
-                                multiple
-                                onChange={(e) => handleFileUpload(e, 'receipt')}
-                              />
-                          </label>
-                      )}
-
-                      {uploadedReceipts.length > 0 && (
-                          <div className="mt-4 text-left space-y-2 max-h-40 overflow-y-auto">
-                              <p className="text-xs font-bold text-green-600 mb-1 flex items-center gap-1">
-                                  <CheckCircle size={12}/> {uploadedReceipts.length} arquivos enviados
-                              </p>
-                              {uploadedReceipts.map((url, i) => (
-                                  <a key={i} href={url} target="_blank" rel="noreferrer" className="block text-xs text-blue-500 hover:underline truncate">
-                                      <ImageIcon size={10} className="inline mr-1"/> Comp. {i + 1}
-                                  </a>
-                              ))}
-                          </div>
-                      )}
-                  </div>
-              </div>
+          <div>
+            <label htmlFor="ex-cpf" className="label">CPF do titular</label>
+            <input id="ex-cpf" className="input" value={pixData.cpf} onChange={handleCpfChange} maxLength={14} inputMode="numeric" disabled={isReadOnly} />
           </div>
-
-          {uploading && (
-              <div className="bg-white p-4 rounded-md shadow-sm border border-gray-100">
-                  <div className="flex justify-between text-xs font-bold text-gray-500 mb-1">
-                      <span>Enviando arquivos...</span>
-                      <span>{uploadProgress.toFixed(0)}%</span>
-                  </div>
-                  <div className="w-full bg-gray-100 rounded-full h-2">
-                      <div className="bg-brand-red h-2 rounded-full transition-all" style={{width: `${uploadProgress}%`}}></div>
-                  </div>
-              </div>
-          )}
-
-          {isReadOnly ? (
-              <div className="w-full bg-green-50 text-green-700 py-4 rounded-md font-bold text-lg text-center border border-green-200">
-                  SOLICITAÇÃO ENVIADA COM SUCESSO
-              </div>
-          ) : (
-              <button 
-                onClick={finishRequest}
-                disabled={uploading}
-                className="w-full bg-brand-red text-white py-4 rounded-md font-bold text-lg shadow-sm hover:bg-red-800 transition transform hover:-translate-y-1 disabled:opacity-50 disabled:translate-y-0"
-              >
-                  FINALIZAR E PEDIR PAGAMENTO
-              </button>
-          )}
+        </div>
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <UploadBox type="photo" title="Fotos da ação" hint="Selecione todas as fotos da ação." icon={<Camera size={16} />} urls={uploadedPhotos} label="Foto" />
+        <UploadBox type="receipt" title="Comprovantes" hint="Notas fiscais de custos (imagem ou PDF)." icon={<UploadCloud size={16} />} urls={uploadedReceipts} label="Comprovante" />
+      </div>
+
+      {uploading && (
+        <div className="card p-4" aria-live="polite">
+          <div className="flex justify-between label"><span>Enviando arquivos...</span><span>{uploadProgress.toFixed(0)}%</span></div>
+          <div className="w-full bg-paper border border-line rounded h-2 overflow-hidden">
+            <div className="bg-navy h-full transition-all duration-200" style={{ width: `${uploadProgress}%` }} />
+          </div>
+        </div>
+      )}
+
+      {isReadOnly ? (
+        done && <div className="notice-ok text-center font-condensed font-bold uppercase tracking-[.3px]">Solicitação enviada</div>
+      ) : (
+        <button onClick={finishRequest} disabled={uploading} className="btn-primary btn-lg w-full">
+          Finalizar e pedir pagamento
+        </button>
+      )}
     </div>
   );
 };

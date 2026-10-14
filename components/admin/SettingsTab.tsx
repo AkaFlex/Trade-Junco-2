@@ -62,7 +62,7 @@ const BudgetsSection: React.FC<{ requests: TradeRequest[]; onBudgetsChanged: () 
     <div className="space-y-4">
       <Card className="p-4 flex flex-col md:flex-row justify-between items-center gap-3">
         <SectionTitle icon={<DollarSign size={18} />}>Orçamento por região</SectionTitle>
-        <div className="flex items-center gap-2 border border-line rounded-md p-1 bg-paper">
+        <div className="flex items-center gap-2 border border-line rounded p-1 bg-paper">
           <button aria-label="Mês anterior" className="p-2 hover:bg-white rounded" onClick={() => setMonth(m => shiftMonth(m, -1))}><ChevronLeft size={18} /></button>
           <input
             type="month"
@@ -84,35 +84,35 @@ const BudgetsSection: React.FC<{ requests: TradeRequest[]; onBudgetsChanged: () 
             const realizedW = stat.limit > 0 ? (stat.realized / stat.limit) * 100 : 0;
             const plannedW = stat.limit > 0 ? (stat.planned / stat.limit) * 100 : 0;
             return (
-              <Card key={stat.name} className={`p-4 border-l-4 ${pct > 100 ? 'border-l-red-600' : 'border-l-purple-junco'}`}>
+              <Card key={stat.name} className={`p-4 border-l-4 ${pct > 100 ? 'border-l-pink-junco' : 'border-l-navy'}`}>
                 <div className="flex justify-between items-start mb-3">
-                  <h3 className="font-condensed font-bold uppercase tracking-wide text-navy">{stat.name}</h3>
+                  <h3 className="section-title">{stat.name}</h3>
                   <button aria-label={`Editar orçamento de ${stat.name}`} onClick={() => { setEditing(stat.name); setLimit(String(stat.limit)); }} className="text-muted hover:text-navy">
                     <Pencil size={15} />
                   </button>
                 </div>
-                <p className="text-[11px] font-condensed font-semibold uppercase tracking-wide text-muted">Limite em {monthLabel(month)}</p>
+                <p className="label mb-0.5">Limite em {monthLabel(month)}</p>
                 {editing === stat.name ? (
                   <div className="flex items-center gap-2 mt-1">
                     <input
                       type="number"
                       aria-label="Limite do mês"
-                      className="w-full border border-line rounded p-1.5 text-sm"
+                      className="input py-1.5"
                       value={limit}
                       onChange={e => setLimit(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') save(stat.name); if (e.key === 'Escape') setEditing(null); }}
                       autoFocus
                     />
-                    <button onClick={() => save(stat.name)} aria-label="Salvar" className="text-green-700 p-1"><Check size={16} /></button>
+                    <button onClick={() => save(stat.name)} aria-label="Salvar" className="text-[#5C7A0F] p-1"><Check size={16} /></button>
                     <button onClick={() => setEditing(null)} aria-label="Cancelar" className="text-muted p-1"><X size={16} /></button>
                   </div>
                 ) : (
-                  <p className="text-2xl font-condensed font-bold text-navy">{formatBRL(stat.limit)}</p>
+                  <p className="kpi text-2xl">{formatBRL(stat.limit)}</p>
                 )}
                 <div className="mt-3">
                   <div className="flex justify-between text-xs mb-1">
-                    <span className="text-gray-600">Usado: {formatBRL(stat.spent)}</span>
-                    <span className={pct > 100 ? 'text-red-700 font-bold' : 'text-muted'}>{pct.toFixed(0)}%</span>
+                    <span className="text-muted">Usado: {formatBRL(stat.spent)}</span>
+                    <span className={pct > 100 ? 'text-pink-junco font-bold' : 'text-muted'}>{pct.toFixed(0)}%</span>
                   </div>
                   <div className="w-full bg-paper border border-line rounded h-3 overflow-hidden flex">
                     <div className="h-full bg-green-junco" style={{ width: `${Math.min(realizedW, 100)}%` }} title={`Pago: ${formatBRL(stat.realized)}`} />
@@ -125,7 +125,7 @@ const BudgetsSection: React.FC<{ requests: TradeRequest[]; onBudgetsChanged: () 
                 </div>
                 <p className="text-xs text-muted flex justify-between pt-3 mt-3 border-t border-line">
                   <span>Orçamento anual</span>
-                  <span className="font-semibold text-gray-700">{formatBRL(annual[stat.name] || 0)}</span>
+                  <span className="font-semibold text-navy">{formatBRL(annual[stat.name] || 0)}</span>
                 </p>
               </Card>
             );
@@ -180,20 +180,20 @@ const ProductsSection: React.FC = () => {
         <div className="flex gap-2">
           <input
             aria-label="Nome do novo produto"
-            className="flex-1 border border-line p-2.5 rounded-md focus:ring-2 focus:ring-navy/30 outline-none"
+            className="input flex-1"
             placeholder="Nome do novo produto (ex: Bala de Coco - 400g)"
             value={newName}
             onChange={e => setNewName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && add()}
           />
-          <button onClick={add} disabled={busy} className="bg-navy text-white px-5 rounded-md font-condensed font-semibold uppercase tracking-wide text-sm disabled:opacity-50">Adicionar</button>
+          <button onClick={add} disabled={busy} className="btn-primary">Adicionar</button>
         </div>
       </Card>
 
       {products.length === 0 ? (
         <Card className="p-6 text-center">
           <p className="text-muted mb-4">Nenhum produto cadastrado ainda.</p>
-          <button onClick={importDefault} disabled={busy} className="bg-paper border border-line text-gray-700 px-5 py-2.5 rounded-md font-semibold disabled:opacity-50 inline-flex items-center gap-2">
+          <button onClick={importDefault} disabled={busy} className="btn">
             {busy && <Loader2 size={14} className="animate-spin" />} Importar lista padrão ({PRODUCTS_LIST.length} produtos)
           </button>
         </Card>
@@ -203,25 +203,25 @@ const ProductsSection: React.FC = () => {
             <div key={p.id} className="flex items-center justify-between p-3.5 gap-3">
               {editingId === p.id ? (
                 <>
-                  <input aria-label="Nome do produto" className="flex-1 border border-line rounded p-2 text-sm" value={editName} onChange={e => setEditName(e.target.value)} autoFocus
+                  <input aria-label="Nome do produto" className="input flex-1 py-1.5" value={editName} onChange={e => setEditName(e.target.value)} autoFocus
                     onKeyDown={e => { if (e.key === 'Escape') setEditingId(null); }} />
                   <button aria-label="Salvar" disabled={busy} onClick={() => {
                     if (!editName.trim()) return toast.warning('Nome não pode ser vazio.');
                     run(async () => { await updateProduct(p.id, { name: editName.trim() }); setEditingId(null); }, 'Produto atualizado!');
-                  }} className="text-green-700 p-2"><Check size={16} /></button>
+                  }} className="text-[#5C7A0F] p-2"><Check size={16} /></button>
                   <button aria-label="Cancelar" onClick={() => setEditingId(null)} className="text-muted p-2"><X size={16} /></button>
                 </>
               ) : (
                 <>
-                  <span className={`flex-1 font-medium ${p.active === false ? 'text-muted line-through' : 'text-gray-800'}`}>{p.name}</span>
+                  <span className={`flex-1 font-medium ${p.active === false ? 'text-muted line-through' : 'text-navy'}`}>{p.name}</span>
                   <OptionButtons
                     ariaLabel={`Situação de ${p.name}`}
                     value={p.active === false ? 'inativo' : 'ativo'}
                     options={[{ value: 'ativo', label: 'Ativo' }, { value: 'inativo', label: 'Inativo' }]}
                     onChange={v => run(() => updateProduct(p.id, { active: v === 'ativo' }))}
                   />
-                  <button aria-label={`Editar ${p.name}`} onClick={() => { setEditingId(p.id); setEditName(p.name); }} className="text-muted hover:text-navy p-2"><Pencil size={16} /></button>
-                  <button aria-label={`Excluir ${p.name}`} onClick={() => remove(p)} className="text-muted hover:text-red-600 p-2"><X size={16} /></button>
+                  <button aria-label={`Editar ${p.name}`} onClick={() => { setEditingId(p.id); setEditName(p.name); }} className="iconbtn"><Pencil size={15} /></button>
+                  <button aria-label={`Excluir ${p.name}`} onClick={() => remove(p)} className="iconbtn-danger"><X size={16} /></button>
                 </>
               )}
             </div>

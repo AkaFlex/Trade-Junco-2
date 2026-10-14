@@ -34,36 +34,32 @@ export const STATUS_FILTERS: { key: RequestStatus | 'all'; label: string }[] = [
 ];
 
 const TYPE_STYLES: Record<string, string> = {
-  degustacao: 'bg-purple-50 text-purple-junco border-purple-junco/30',
-  personalizacao: 'bg-pink-50 text-pink-junco border-pink-junco/30',
-  evento: 'bg-orange-50 text-orange-junco border-orange-junco/30',
-  acao_social: 'bg-green-50 text-green-800 border-green-junco/50',
+  degustacao: 'badge-highlight',
+  personalizacao: 'badge-info',
+  evento: 'badge-warn',
+  acao_social: 'badge-ok',
 };
 
 export const TypeBadge: React.FC<{ request: Pick<TradeRequest, 'requestType'> }> = ({ request }) => {
   const t = typeOf(request);
-  return (
-    <span className={`inline-block text-[10px] font-condensed font-bold uppercase tracking-wide px-2 py-0.5 rounded border ${TYPE_STYLES[t]}`}>
-      {REQUEST_TYPE_LABELS[t]}
-    </span>
-  );
+  return <span className={TYPE_STYLES[t]}>{REQUEST_TYPE_LABELS[t]}</span>;
 };
 
 export const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
-  <div className={`bg-white border border-line rounded-md ${className}`}>{children}</div>
+  <div className={`card ${className}`}>{children}</div>
 );
 
 export const SectionTitle: React.FC<{ icon?: React.ReactNode; children: React.ReactNode; right?: React.ReactNode }> = ({ icon, children, right }) => (
-  <div className="flex items-center justify-between gap-3 mb-4">
-    <h2 className="font-condensed font-bold uppercase tracking-wide text-navy text-lg flex items-center gap-2">{icon}{children}</h2>
+  <div className="flex items-center justify-between gap-3 mb-3">
+    <h2 className="section-title flex items-center gap-2">{icon}{children}</h2>
     {right}
   </div>
 );
 
 export const Field: React.FC<{ label: string; children: React.ReactNode; full?: boolean }> = ({ label, children, full }) => (
   <div className={full ? 'md:col-span-full' : ''}>
-    <span className="block text-[11px] font-condensed font-semibold uppercase tracking-wide text-muted mb-1">{label}</span>
-    <div className="text-sm text-gray-800 bg-paper border border-line rounded px-3 py-2 break-words">{children || '—'}</div>
+    <span className="label">{label}</span>
+    <div className="text-[13.5px] card-inner px-2.5 py-2 break-words">{children || '—'}</div>
   </div>
 );
 

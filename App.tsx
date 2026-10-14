@@ -85,83 +85,58 @@ const App: React.FC = () => {
 
   if (loading) return (
     <ToastProvider>
-      <div className="min-h-screen flex items-center justify-center text-navy animate-pulse">Carregando Junco Trade...</div>
+      <div className="rainbow" />
+      <div className="loading min-h-screen flex items-center justify-center">Carregando Junco Trade...</div>
     </ToastProvider>
   );
 
-  // Barra navy (padrão Junco) com uma faixa colorida que identifica a área atual.
-  const FLOW_ACCENT: Record<Flow, string> = {
-    home: '#AECB28', request: '#B91C1C', customization: '#5F4F9A', events: '#EE7C1F',
-    sellout: '#D60052', reimbursement: '#1D8BD0', admin: '#59647A', login: '#59647A',
+  const AREA_LABEL: Record<Flow, string> = {
+    home: 'Menu principal', admin: 'Painel do gestor', login: 'Acesso restrito', request: 'Solicitar degustação',
+    customization: 'Solicitar personalização', events: 'Solicitação de eventos', sellout: 'Sell-Out (degustadora)',
+    reimbursement: 'Minhas solicitações',
   };
+
+  const centeredCard = (children: React.ReactNode) => (
+    <div className="page"><div className="card max-w-md mx-auto my-10 p-8 text-center view-in">{children}</div></div>
+  );
 
   return (
     <ToastProvider>
       <ConfirmProvider>
-      <div className="min-h-screen bg-paper flex flex-col font-sans">
-        
-        {/* TOP NAVBAR */}
-        <nav className="bg-navy text-white sticky top-0 z-50 border-b-4 transition-colors duration-500" style={{ borderBottomColor: FLOW_ACCENT[flow] }}>
-          <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
-            
-            <div className="flex items-center gap-3">
-              <img
-                src={juncoLogo}
-                alt="Junco"
-                className="h-9 w-auto shrink-0 cursor-pointer"
-                onClick={() => setFlow('home')}
-              />
-              <div className="min-w-0 cursor-pointer" onClick={() => setFlow('home')}>
-                <h1 className="font-condensed font-bold text-base md:text-lg leading-tight tracking-wide truncate">JUNCO TRADE</h1>
-                <p className="text-[10px] opacity-80 uppercase tracking-widest truncate">
-                  {flow === 'admin' ? 'Painel Gestor' : 
-                   flow === 'login' ? 'Acesso Restrito' :
-                   flow === 'request' ? 'Nova Solicitação' : 
-                   flow === 'customization' ? 'Solicitar Personalização' :
-                   flow === 'events' ? 'Solicitação de Eventos' :
-                   flow === 'sellout' ? 'Sell Out (Degustadora)' :
-                   flow === 'reimbursement' ? 'Acompanhar Solicitações' : 'Menu Principal'}
-                </p>
-              </div>
-            </div>
+      <div className="min-h-screen bg-paper flex flex-col">
+        <div className="rainbow" />
+        <header className="bg-white border-b border-line sticky top-0 z-40">
+          <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-3 flex justify-between items-center gap-3">
+            <button onClick={() => setFlow('home')} className="flex items-center gap-3 min-w-0 text-left" aria-label="Ir para o menu principal">
+              <img src={juncoLogo} alt="" className="h-10 w-auto shrink-0" />
+              <span className="min-w-0">
+                <span className="block font-condensed font-black text-lg md:text-xl uppercase tracking-[.3px] text-navy leading-tight truncate">Junco Trade</span>
+                <span className="block text-[12px] text-muted truncate">{AREA_LABEL[flow]}</span>
+              </span>
+            </button>
 
-            <div className="flex items-center gap-2 md:gap-4">
+            <div className="flex items-center gap-2">
               {flow !== 'home' && (
-                <button
-                  onClick={() => setFlow('home')}
-                  className="flex items-center gap-1 bg-black/10 px-3 py-1.5 rounded hover:bg-black/20 transition text-sm font-bold whitespace-nowrap"
-                >
-                  <Home size={16} /> <span className="hidden sm:inline">Início</span>
+                <button onClick={() => setFlow('home')} className="btn">
+                  <Home size={15} /> <span className="hidden sm:inline">Início</span>
                 </button>
               )}
-              
               {user ? (
                 <>
-                  <span className="text-sm hidden md:inline opacity-90">{user.email}</span>
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-1 bg-black/20 px-3 py-1.5 rounded hover:bg-black/30 transition text-sm font-bold whitespace-nowrap"
-                  >
-                    <LogOut size={16} /> <span className="hidden sm:inline">Sair</span>
-                  </button>
+                  <span className="text-[13px] text-muted hidden md:inline">{user.email}</span>
+                  <button onClick={handleLogout} className="btn"><LogOut size={15} /> <span className="hidden sm:inline">Sair</span></button>
                 </>
               ) : (
                 flow !== 'login' && (
-                  <button
-                    onClick={() => setFlow('login')}
-                    className="flex items-center gap-1 bg-white text-navy px-4 py-1.5 rounded hover:bg-paper transition text-sm font-condensed font-semibold uppercase tracking-wide whitespace-nowrap"
-                  >
-                    <Shield size={16} /> Gestor
-                  </button>
+                  <button onClick={() => setFlow('login')} className="btn"><Shield size={15} /> Gestor</button>
                 )
               )}
             </div>
           </div>
-        </nav>
+        </header>
 
-        {/* MAIN CONTENT AREA */}
-        <main className="flex-1 overflow-y-auto">
-          <Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="animate-spin text-navy" size={36} /></div>}>
+        <main className="flex-1">
+          <Suspense fallback={<div className="loading flex justify-center"><Loader2 className="animate-spin text-navy" size={32} /></div>}>
           {flow === 'home' && <HomeMenu user={user} onNavigate={setFlow} />}
           {flow === 'request' && <RequestWizard user={user} onCancel={() => setFlow('home')} onSuccess={() => setFlow('home')} />}
           {flow === 'customization' && <CustomizationWizard user={user} onCancel={() => setFlow('home')} onSuccess={() => setFlow('home')} />}
@@ -169,77 +144,44 @@ const App: React.FC = () => {
           {flow === 'sellout' && <PromoterPanel initialCode={parseHash().params.get('code') || undefined} />}
           {flow === 'reimbursement' && <RCAPanel user={user} />}
           {flow === 'admin' && user?.role === 'admin' && <AdminPanel />}
-          {flow === 'admin' && user && user.role !== 'admin' && (
-            <div className="max-w-md mx-auto my-16 bg-white border border-line rounded-md p-8 text-center">
-              <Lock className="mx-auto text-muted mb-3" size={32} />
-              <h2 className="font-condensed font-bold uppercase tracking-wide text-navy text-xl mb-2">Sem acesso ao painel</h2>
-              <p className="text-sm text-muted mb-6">A conta <strong>{user.email}</strong> não tem perfil de gestor. Se precisar de acesso, fale com o responsável pelo Portal Trade.</p>
-              <button onClick={() => setFlow('home')} className="bg-navy text-white px-5 py-2 rounded-md font-condensed font-semibold uppercase tracking-wide text-sm">Voltar ao início</button>
-            </div>
-          )}
-          {flow === 'admin' && !user && (
-            <div className="max-w-md mx-auto my-16 bg-white border border-line rounded-md p-8 text-center">
-              <Lock className="mx-auto text-muted mb-3" size={32} />
-              <p className="text-sm text-muted mb-6">Entre com sua conta de gestor para acessar o painel.</p>
-              <button onClick={() => setFlow('login')} className="bg-navy text-white px-5 py-2 rounded-md font-condensed font-semibold uppercase tracking-wide text-sm">Entrar</button>
-            </div>
-          )}
+          {flow === 'admin' && user && user.role !== 'admin' && centeredCard(<>
+            <Lock className="mx-auto text-muted mb-3" size={28} />
+            <h2 className="section-title mb-2">Sem acesso ao painel</h2>
+            <p className="text-[13.5px] text-muted mb-6">A conta <strong className="text-navy">{user.email}</strong> não tem perfil de gestor. Se precisar de acesso, fale com o responsável pelo Portal Trade.</p>
+            <button onClick={() => setFlow('home')} className="btn-primary">Voltar ao início</button>
+          </>)}
+          {flow === 'admin' && !user && centeredCard(<>
+            <Lock className="mx-auto text-muted mb-3" size={28} />
+            <p className="text-[13.5px] text-muted mb-6">Entre com sua conta de gestor para acessar o painel.</p>
+            <button onClick={() => setFlow('login')} className="btn-primary">Entrar</button>
+          </>)}
           </Suspense>
-          
+
           {flow === 'login' && (
-            <div className="flex items-center justify-center p-4 h-full animate-in zoom-in-95 duration-300">
-              <div className="bg-white border border-gray-100 p-8 rounded-md shadow-sm w-full max-w-md my-8">
-                <div className="text-center mb-8">
-                  <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-brand-purple">
-                    <Shield size={32} />
-                  </div>
-                  <h2 className="text-2xl font-bold text-gray-800">Acesso Restrito</h2>
-                  <p className="text-gray-500 text-sm mt-1">Apenas para gestores (Admins)</p>
+            <div className="page">
+              <div className="card max-w-md mx-auto my-10 view-in">
+                <div className="card-head">
+                  <h2 className="page-title text-xl flex items-center gap-2"><Shield size={20} /> Acesso restrito</h2>
+                  <p className="page-sub">Apenas para gestores do Trade.</p>
                 </div>
-                
-                {loginError && (
-                  <div className="bg-red-50 text-red-600 p-4 rounded-lg text-sm mb-6 border border-red-100 flex items-start gap-2">
-                    <span className="font-bold flex-1">{loginError}</span>
-                  </div>
-                )}
-                
-                <form onSubmit={handleLogin} className="space-y-5">
+                <form onSubmit={handleLogin} className="p-5 space-y-4">
+                  {loginError && <div className="notice-error" role="alert">{loginError}</div>}
                   <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">E-mail Corporativo</label>
-                    <input 
-                      type="email" 
-                      className="w-full border border-gray-200 p-3 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-purple focus:border-transparent transition bg-gray-50"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="seu.email@junco.com.br"
-                      required
-                    />
+                    <label htmlFor="login-email" className="label">E-mail corporativo</label>
+                    <input id="login-email" type="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu.email@junco.com.br" required autoComplete="username" />
                   </div>
                   <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">Senha</label>
-                    <input 
-                      type="password" 
-                      className="w-full border border-gray-200 p-3 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-purple focus:border-transparent transition bg-gray-50"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      required
-                    />
+                    <label htmlFor="login-pass" className="label">Senha</label>
+                    <input id="login-pass" type="password" className="input" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required autoComplete="current-password" />
                   </div>
-                  
-                  <button 
-                    type="submit" 
-                    disabled={loginLoading}
-                    className="w-full bg-brand-purple text-white font-bold py-3.5 rounded-md hover:bg-purple-900 transition-all shadow-md transform hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0"
-                  >
-                    {loginLoading ? "CONECTANDO..." : "ENTRAR NO PAINEL"}
+                  <button type="submit" disabled={loginLoading} className="btn-primary w-full btn-lg">
+                    {loginLoading ? <><Loader2 size={16} className="animate-spin" /> Conectando...</> : 'Entrar no painel'}
                   </button>
                 </form>
               </div>
             </div>
           )}
         </main>
-
       </div>
       </ConfirmProvider>
     </ToastProvider>

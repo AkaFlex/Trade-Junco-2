@@ -1,9 +1,9 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Wallet, Receipt, CheckCircle, Eye, Loader2, DollarSign, Paperclip } from 'lucide-react';
+import { Wallet, Receipt, CheckCircle, Eye, Loader2, DollarSign, Paperclip, ChevronDown } from 'lucide-react';
 import { TradeRequest } from '../../types';
 import { StatusBadge } from '../shared/StatusBadge';
 import { acceptAttr } from '../../services/uploadService';
-import { Card, SectionTitle, TypeBadge, isEventLike, formatBRL, formatDateBR } from './shared';
+import { Card, TypeBadge, isEventLike, formatBRL, formatDateBR } from './shared';
 
 interface Props {
   requests: TradeRequest[];
@@ -15,21 +15,34 @@ interface Props {
 }
 
 const Row: React.FC<{ r: TradeRequest; children: React.ReactNode; onOpen: (r: TradeRequest) => void }> = ({ r, children, onOpen }) => (
-  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4">
+  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-5 py-3.5 hover:bg-[#FBF6E9] transition-colors duration-150">
     <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-condensed font-bold text-purple-junco">{r.tradeCode}</span>
+        <span className="font-condensed font-bold text-navy">{r.tradeCode}</span>
         <TypeBadge request={r} />
         <StatusBadge status={r.status} requestType={r.requestType} />
       </div>
-      <div className="text-sm text-gray-800 mt-1 truncate">{r.rcaName} · {r.partnerCode} · {r.region}</div>
-      {r.dateOfAction && <div className="text-xs text-muted">Data: {formatDateBR(r.dateOfAction)}</div>}
+      <div className="text-[13.5px] text-navy mt-1 truncate">{r.rcaName} · {r.partnerCode} · {r.region}</div>
+      {r.dateOfAction && <div className="text-[12px] text-muted">Data: {formatDateBR(r.dateOfAction)}</div>}
     </div>
     <div className="flex items-center gap-2 shrink-0">
-      <button onClick={() => onOpen(r)} aria-label="Ver detalhes" className="text-muted hover:text-navy p-2 rounded hover:bg-paper"><Eye size={18} /></button>
+      <button onClick={() => onOpen(r)} aria-label="Ver detalhes" className="iconbtn"><Eye size={15} /></button>
       {children}
     </div>
   </div>
+);
+
+const Section: React.FC<{ title: string; icon: React.ReactNode; count: number; hint: string; right?: React.ReactNode; children: React.ReactNode }> = ({ title, icon, count, hint, right, children }) => (
+  <Card>
+    <div className="card-head">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="section-title flex items-center gap-2">{icon}{title} <span className="badge">{count}</span></h2>
+        {right}
+      </div>
+      <p className="hint mt-1">{hint}</p>
+    </div>
+    <div className="divide-y divide-line">{children}</div>
+  </Card>
 );
 
 export const FinanceTab: React.FC<Props> = ({ requests, busyId, onOpen, onMarkPaid, onAttachReceipt, onCompleteWithoutReceipt }) => {
@@ -51,7 +64,7 @@ export const FinanceTab: React.FC<Props> = ({ requests, busyId, onOpen, onMarkPa
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <input
         ref={fileInput}
         type="file"
@@ -66,59 +79,48 @@ export const FinanceTab: React.FC<Props> = ({ requests, busyId, onOpen, onMarkPa
         }}
       />
 
-      <Card>
-        <div className="p-5 border-b border-line">
-          <SectionTitle icon={<Wallet size={18} />} right={<span className="text-sm font-semibold text-navy">{formatBRL(totalToPay)}</span>}>
-            Degustações a pagar ({toPay.length})
-          </SectionTitle>
-          <p className="text-xs text-muted -mt-2">RCA já enviou fotos, notas e PIX. Confira os dados em "Ver detalhes" antes de pagar.</p>
-        </div>
-        <div className="divide-y divide-line">
-          {toPay.length === 0 && <p className="p-6 text-center text-sm text-muted">Nada a pagar no momento.</p>}
-          {toPay.map(r => (
-            <Row key={r.id} r={r} onOpen={onOpen}>
-              <span className="font-semibold text-gray-800 mr-1">{formatBRL(r.totalValue)}</span>
-              <button onClick={() => onMarkPaid(r)} disabled={busyId === r.id} className="bg-green-700 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-green-800 disabled:opacity-50 flex items-center gap-1">
-                {busyId === r.id ? <Loader2 className="animate-spin" size={12} /> : <DollarSign size={12} />} Marcar como pago
-              </button>
-            </Row>
-          ))}
-        </div>
-      </Card>
+      <Section
+        title="Degustações a pagar" icon={<Wallet size={16} />} count={toPay.length}
+        hint="O RCA já enviou fotos, notas e PIX. Confira os dados em detalhes antes de pagar."
+        right={<span className="kpi text-lg">{formatBRL(totalToPay)}</span>}
+      >
+        {toPay.length === 0 && <p className="empty">Nada a pagar no momento.</p>}
+        {toPay.map(r => (
+          <Row key={r.id} r={r} onOpen={onOpen}>
+            <span className="kpi mr-1">{formatBRL(r.totalValue)}</span>
+            <button onClick={() => onMarkPaid(r)} disabled={busyId === r.id} className="btn-primary">
+              {busyId === r.id ? <Loader2 className="animate-spin" size={13} /> : <DollarSign size={13} />} Marcar como pago
+            </button>
+          </Row>
+        ))}
+      </Section>
+
+      <Section
+        title="Aguardando recibo" icon={<Receipt size={16} />} count={awaitingReceipt.length}
+        hint="Personalizações, eventos e ações sociais aprovados. Quando o recibo/NF chegar, anexe aqui para concluir."
+      >
+        {awaitingReceipt.length === 0 && <p className="empty">Nenhum recibo pendente.</p>}
+        {awaitingReceipt.map(r => (
+          <Row key={r.id} r={r} onOpen={onOpen}>
+            <button onClick={() => pickReceipt(r)} disabled={busyId === r.id} className="btn-primary">
+              {busyId === r.id ? <Loader2 className="animate-spin" size={13} /> : <Paperclip size={13} />} Anexar recibo e concluir
+            </button>
+            <button onClick={() => onCompleteWithoutReceipt(r)} disabled={busyId === r.id} className="btn">Concluir sem recibo</button>
+          </Row>
+        ))}
+      </Section>
 
       <Card>
-        <div className="p-5 border-b border-line">
-          <SectionTitle icon={<Receipt size={18} />}>Aguardando recibo ({awaitingReceipt.length})</SectionTitle>
-          <p className="text-xs text-muted -mt-2">Personalizações, eventos e ações sociais aprovados. Quando o recibo/NF chegar, anexe aqui para concluir.</p>
-        </div>
-        <div className="divide-y divide-line">
-          {awaitingReceipt.length === 0 && <p className="p-6 text-center text-sm text-muted">Nenhum recibo pendente.</p>}
-          {awaitingReceipt.map(r => (
-            <Row key={r.id} r={r} onOpen={onOpen}>
-              <button onClick={() => pickReceipt(r)} disabled={busyId === r.id} className="bg-navy text-white px-3 py-1.5 rounded text-xs font-bold hover:opacity-90 disabled:opacity-50 flex items-center gap-1">
-                {busyId === r.id ? <Loader2 className="animate-spin" size={12} /> : <Paperclip size={12} />} Anexar recibo e concluir
-              </button>
-              <button onClick={() => onCompleteWithoutReceipt(r)} disabled={busyId === r.id} className="bg-white text-gray-700 border border-line px-3 py-1.5 rounded text-xs font-bold hover:bg-paper disabled:opacity-50">
-                Concluir sem recibo
-              </button>
-            </Row>
-          ))}
-        </div>
-      </Card>
-
-      <Card>
-        <button onClick={() => setShowPaid(s => !s)} aria-expanded={showPaid} className="w-full p-5 flex items-center justify-between text-left">
-          <span className="font-condensed font-bold uppercase tracking-wide text-navy text-lg flex items-center gap-2">
-            <CheckCircle size={18} /> Pagos / concluídos ({paid.length})
-          </span>
-          <span className="text-xs text-muted">{showPaid ? 'Ocultar' : 'Mostrar'}</span>
+        <button onClick={() => setShowPaid(s => !s)} aria-expanded={showPaid} className="w-full card-head flex items-center justify-between text-left border-b-0">
+          <span className="section-title flex items-center gap-2"><CheckCircle size={16} /> Pagos / concluídos <span className="badge">{paid.length}</span></span>
+          <ChevronDown size={16} className={`text-muted transition-transform duration-150 ${showPaid ? 'rotate-180' : ''}`} />
         </button>
         {showPaid && (
           <div className="divide-y divide-line border-t border-line">
-            {paid.length === 0 && <p className="p-6 text-center text-sm text-muted">Nenhum registro.</p>}
+            {paid.length === 0 && <p className="empty">Nenhum registro.</p>}
             {paid.map(r => (
               <Row key={r.id} r={r} onOpen={onOpen}>
-                {!isEventLike(r) && <span className="font-semibold text-gray-800">{formatBRL(r.totalValue)}</span>}
+                {!isEventLike(r) && <span className="kpi">{formatBRL(r.totalValue)}</span>}
               </Row>
             ))}
           </div>

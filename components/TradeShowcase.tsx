@@ -1,36 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, TradeShowcaseItem } from '../types';
 import { getShowcaseItems, createShowcaseItem, uploadShowcaseImage, deleteShowcaseItem, describeFirestoreError } from '../services/showcaseService';
-import { validateFile } from '../services/uploadService';
+import { validateFile, acceptAttr } from '../services/uploadService';
 import { useToast } from './shared/Toast';
 import { useConfirm } from './shared/ConfirmModal';
-import { PlusCircle, Trash2, X, Image as ImageIcon, MapPin, Building, ChevronLeft, ChevronRight } from 'lucide-react';
+import { PlusCircle, Trash2, X, Image as ImageIcon, MapPin, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 interface Props {
   user: UserProfile | null;
 }
 
+// Vitrine em grade navegável (sem autoplay: o padrão da empresa não adota animação em loop).
+const PAGE_SIZE = 6;
+
 export const TradeShowcase: React.FC<Props> = ({ user }) => {
   const toast = useToast();
   const confirm = useConfirm();
+  const isAdmin = user?.role === 'admin';
   const [items, setItems] = useState<TradeShowcaseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [page, setPage] = useState(0);
 
-  // Form State
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [partner, setPartner] = useState('');
   const [city, setCity] = useState('');
   const [uploading, setUploading] = useState(false);
-
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
+  const firstField = useRef<HTMLInputElement>(null);
 
   const fetchItems = async () => {
     try {
-      const data = await getShowcaseItems();
-      setItems(data);
+      setItems(await getShowcaseItems());
       setLoadError('');
     } catch (error) {
       setLoadError(describeFirestoreError(error));
@@ -39,214 +40,136 @@ export const TradeShowcase: React.FC<Props> = ({ user }) => {
     }
   };
 
+  useEffect(() => { fetchItems(); }, []);
+
   useEffect(() => {
-    fetchItems();
-  }, []);
+    if (!isModalOpen) return;
+    firstField.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !uploading) setIsModalOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isModalOpen, uploading]);
 
-  // Set interval to auto slide carousel
-  useEffect(() => {
-    if (items.length <= 1 || paused) return;
-    const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % items.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [items.length, paused]);
-
-  const handleNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % items.length);
-  };
-
-  const handlePrev = () => {
-    setCurrentIndex((prev) => (prev - 1 + items.length) % items.length);
-  };
+  const pages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const visible = items.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file) return toast.warning("Selecione uma imagem.");
+    if (!file) return toast.warning('Selecione uma imagem.');
     const invalid = validateFile(file, ['image']);
-    if (invalid) return toast.warning("Arquivo não aceito", invalid);
-    if (user?.role !== 'admin') return toast.error("Apenas gestores podem cadastrar na vitrine.");
+    if (invalid) return toast.warning('Arquivo não aceito', invalid);
+    if (!isAdmin) return toast.error('Apenas gestores podem cadastrar na vitrine.');
     setUploading(true);
     try {
       const imageUrl = await uploadShowcaseImage(file);
-      await createShowcaseItem({
-        imageUrl,
-        partner,
-        city,
-        createdAt: Date.now()
-      });
+      await createShowcaseItem({ imageUrl, partner, city, createdAt: Date.now() });
       setIsModalOpen(false);
-      setFile(null);
-      setPartner('');
-      setCity('');
+      setFile(null); setPartner(''); setCity('');
+      setPage(0);
       fetchItems();
-      toast.success("Foto adicionada à vitrine!");
-    } catch (e) {
-      toast.error("Erro ao salvar a foto", describeFirestoreError(e));
+      toast.success('Foto adicionada à vitrine!');
+    } catch (err) {
+      toast.error('Erro ao salvar a foto', describeFirestoreError(err));
     } finally {
       setUploading(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    const ok = await confirm({ title: 'Excluir da vitrine?', message: 'A foto deixa de aparecer para todos.', confirmLabel: 'Excluir', danger: true });
+  const handleDelete = async (item: TradeShowcaseItem) => {
+    const ok = await confirm({ title: 'Excluir da vitrine?', message: `A foto de "${item.partner}" deixa de aparecer para todos.`, confirmLabel: 'Excluir foto', danger: true });
     if (!ok) return;
     try {
-      await deleteShowcaseItem(id);
-      if (currentIndex >= items.length - 1) {
-        setCurrentIndex(Math.max(0, items.length - 2));
-      }
-      toast.success("Foto removida da vitrine.");
+      await deleteShowcaseItem(item.id);
+      toast.success('Foto removida da vitrine.');
       fetchItems();
-    } catch (e) {
-      toast.error("Não foi possível excluir", describeFirestoreError(e));
+    } catch (err) {
+      toast.error('Não foi possível excluir', describeFirestoreError(err));
     }
   };
 
-  if (loading) {
-    return (
-      <div className="w-full bg-gray-900 py-24 flex justify-center" aria-busy="true">
-        <span className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" aria-label="Carregando vitrine" />
-      </div>
-    );
-  }
-
   return (
-    <div className="w-full relative animate-in fade-in duration-700 bg-black">
-      {/* Header Container Constrained inside Full Width */}
-      <div className="max-w-7xl mx-auto px-4 md:px-8 py-6 flex justify-between items-end absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/80 to-transparent">
+    <section className="page" aria-labelledby="vitrine-title">
+      <div className="flex items-end justify-between gap-3 pt-6 border-t border-line mb-4">
         <div>
-          <h2 className="text-2xl md:text-3xl font-extrabold text-white drop-shadow-lg">Vitrine de Ações</h2>
-          <p className="text-gray-300 text-sm md:text-base mt-1 drop-shadow-md">Inspirações e demonstrações das nossas execuções de destaque.</p>
+          <h2 id="vitrine-title" className="section-title">
+            Vitrine de ações {items.length > 0 && <span className="badge ml-1 align-middle">{items.length}</span>}
+          </h2>
+          <p className="hint">Inspirações e execuções de destaque.</p>
         </div>
-        {user?.role === 'admin' && (
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 bg-brand-red text-white px-5 py-2.5 rounded-md hover:bg-red-700 transition-all font-bold text-sm transform hover:-translate-y-1"
-          >
-            <PlusCircle size={18} /> <span className="hidden md:inline">Cadastrar Vitrine</span>
-          </button>
+        {isAdmin && (
+          <button onClick={() => setIsModalOpen(true)} className="btn"><PlusCircle size={15} /> Cadastrar foto</button>
         )}
       </div>
 
-      {items.length === 0 ? (
-        <div className="text-center py-32 bg-gray-900 border-y border-gray-800 flex flex-col items-center">
-          <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mb-4">
-             <ImageIcon className="text-gray-500" size={30} />
-          </div>
-          <h3 className="font-bold text-white text-lg">{loadError ? 'Não foi possível carregar a vitrine' : 'Ainda não há fotos na vitrine'}</h3>
-          <p className="text-gray-400 text-sm mt-1 max-w-sm">
-            {loadError
-              ? (user?.role === 'admin' ? loadError : 'Tente novamente mais tarde.')
-              : user?.role === 'admin'
-                ? "Clique em Cadastrar Vitrine acima para adicionar suas melhores fotos."
-                : "As novidades aparecerão por aqui em breve!"}
-          </p>
+      {loading ? (
+        <div className="loading flex justify-center" aria-busy="true"><Loader2 className="animate-spin text-navy" size={24} aria-label="Carregando vitrine" /></div>
+      ) : items.length === 0 ? (
+        <div className="card empty">
+          <ImageIcon className="mx-auto mb-2 text-muted" size={24} />
+          {loadError
+            ? <>Não foi possível carregar a vitrine.{isAdmin && <span className="block mt-1 text-[12.5px]">{loadError}</span>}</>
+            : isAdmin ? 'Nenhuma foto ainda. Use "Cadastrar foto" para adicionar.' : 'As novidades aparecerão aqui em breve.'}
         </div>
       ) : (
-        <div
-          className="relative w-full h-[500px] md:h-[650px] overflow-hidden group bg-black"
-          role="region"
-          aria-roledescription="carrossel"
-          aria-label="Vitrine de ações"
-          onMouseEnter={() => setPaused(true)}
-          onMouseLeave={() => setPaused(false)}
-          onFocus={() => setPaused(true)}
-          onBlur={() => setPaused(false)}
-        >
-          {items.map((item, index) => (
-            <div
-              key={item.id}
-              className={`absolute top-0 left-0 w-full h-full transition-opacity duration-1000 ease-in-out ${index === currentIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
-            >
-              <img src={item.imageUrl} alt="Vitrine" className={`w-full h-full object-cover opacity-80 transition-transform duration-[15000ms] ease-out ${index === currentIndex ? 'scale-110' : 'scale-100'}`} />
-              
-              {/* Overlay inferior mais dramático */}
-              <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black via-black/40 to-transparent pointer-events-none"></div>
-              
-              <div className="absolute bottom-0 left-0 w-full z-20">
-                <div className="max-w-7xl mx-auto px-4 md:px-8 pb-8 md:pb-12 flex flex-col md:flex-row justify-between items-end md:items-center gap-4">
-                  <div className="backdrop-blur-md bg-white/10 p-5 md:p-6 rounded-md border border-white/20 flex-1 transform translate-y-0 transition-all duration-500 group-hover:-translate-y-2">
-                     <h3 className="text-white text-3xl md:text-4xl font-black tracking-tight flex items-center gap-3 drop-shadow-md">
-                        <Building size={28} className="text-brand-red drop-shadow"/> {item.partner}
-                     </h3>
-                     <div className="flex flex-wrap items-center gap-4 mt-3 text-gray-200 text-base md:text-lg font-medium">
-                        <span className="flex items-center gap-2 drop-shadow"><MapPin size={20} className="text-gray-400"/> {item.city}</span>
-                     </div>
-                  </div>
-                  
-                  {user?.role === 'admin' && (
-                    <button 
-                      onClick={() => handleDelete(item.id)}
-                      aria-label="Excluir da vitrine"
-                      className="bg-red-600/90 hover:bg-red-700 text-white p-3 md:p-4 rounded-full backdrop-blur-sm transition-all transform hover:-translate-y-1 hover:scale-110 border border-white/10"
-                      title="Deletar da Vitrine"
-                    >
-                      <Trash2 size={24} />
-                    </button>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {visible.map(item => (
+              <figure key={item.id} className="card overflow-hidden m-0">
+                <a href={item.imageUrl} target="_blank" rel="noreferrer" className="block bg-paper">
+                  <img src={item.imageUrl} alt={`Ação em ${item.partner}`} loading="lazy" className="w-full aspect-[4/3] object-cover" />
+                </a>
+                <figcaption className="px-4 py-3 flex items-start justify-between gap-3 border-t border-line">
+                  <span className="min-w-0">
+                    <span className="block font-semibold text-navy truncate">{item.partner}</span>
+                    <span className="flex items-center gap-1 text-[12.5px] text-muted"><MapPin size={12} /> {item.city}</span>
+                  </span>
+                  {isAdmin && (
+                    <button onClick={() => handleDelete(item)} className="iconbtn-danger" aria-label={`Excluir foto de ${item.partner}`}><Trash2 size={14} /></button>
                   )}
-                </div>
-              </div>
-            </div>
-          ))}
-
-          {/* Navigation Arrows */}
-          {items.length > 1 && (
-             <>
-               <button onClick={handlePrev} aria-label="Foto anterior" className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 z-30 bg-black/40 hover:bg-white hover:text-black text-white p-4 rounded-full backdrop-blur-md transition-all focus:outline-none hidden md:block opacity-0 group-hover:opacity-100 shadow-sm border border-white/20">
-                 <ChevronLeft size={28} />
-               </button>
-               <button onClick={handleNext} aria-label="Próxima foto" className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 z-30 bg-black/40 hover:bg-white hover:text-black text-white p-4 rounded-full backdrop-blur-md transition-all focus:outline-none hidden md:block opacity-0 group-hover:opacity-100 shadow-sm border border-white/20">
-                 <ChevronRight size={28} />
-               </button>
-
-               {/* Dots Indicator */}
-               <div className="absolute bottom-6 right-1/2 translate-x-1/2 z-30 flex gap-3 md:bottom-12 md:right-12 md:translate-x-0">
-                 {items.map((_, i) => (
-                   <button key={i} onClick={() => setCurrentIndex(i)} className={`h-2.5 md:h-3 rounded-full transition-all duration-300 shadow-lg ${i === currentIndex ? 'w-8 md:w-10 bg-brand-red' : 'w-2.5 md:w-3 bg-white/60 hover:bg-white'}`} aria-label={`Ir para o slide ${i + 1}`} />
-                 ))}
-               </div>
-             </>
-          )}
-        </div>
-      )}
-
-      {/* Modal Form Admin */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-md w-full max-w-md overflow-hidden shadow-sm animate-in zoom-in-95 duration-300 border border-gray-100">
-            <div className="bg-gray-50 border-b border-gray-100 p-6 flex justify-between items-center">
-              <h3 className="font-bold text-gray-800 flex items-center gap-3 text-xl"><ImageIcon size={24} className="text-brand-red"/> Adicionar na Vitrine</h3>
-              <button disabled={uploading} onClick={() => setIsModalOpen(false)} aria-label="Fechar" className="text-gray-400 hover:text-gray-800 hover:bg-gray-200 transition-colors bg-white p-2 rounded-full shadow-sm"><X size={20}/></button>
-            </div>
-            
-            <form onSubmit={handleSubmit} className="p-8 space-y-6">
-              <div>
-                <label className="block text-sm font-extrabold text-gray-700 mb-2 uppercase tracking-wide">Escolher Foto</label>
-                <div className="border-2 border-dashed border-brand-red/30 bg-red-50/50 rounded-md p-3 hover:bg-red-50 transition-colors group">
-                   <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} className="w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-brand-red file:text-white hover:file:bg-red-700 file:cursor-pointer cursor-pointer transition-all" />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-extrabold text-gray-700 mb-2 uppercase tracking-wide">Parceiro (Rede/Distribuidor)</label>
-                <input required type="text" value={partner} onChange={e => setPartner(e.target.value)} className="w-full border-2 border-gray-100 bg-gray-50 rounded-md p-4 focus:bg-white focus:ring-4 focus:ring-red-100 focus:border-brand-red transition-all outline-none text-gray-800 font-medium" placeholder="Ex: Atacadão S/A" />
-              </div>
-
-              <div>
-                <label className="block text-sm font-extrabold text-gray-700 mb-2 uppercase tracking-wide">Cidade - UF</label>
-                <input required type="text" value={city} onChange={e => setCity(e.target.value)} className="w-full border-2 border-gray-100 bg-gray-50 rounded-md p-4 focus:bg-white focus:ring-4 focus:ring-red-100 focus:border-brand-red transition-all outline-none text-gray-800 font-medium" placeholder="Ex: Goiânia - GO" />
-              </div>
-
-              <div className="pt-4">
-                <button disabled={uploading || !file} type="submit" className="w-full bg-brand-red text-white font-extrabold pb-3.5 pt-4 rounded-md hover:bg-red-700 transition-all transform hover:-translate-y-1 disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none disabled:transform-none flex items-center justify-center gap-3 text-lg">
-                  {uploading ? <><span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> ENVIANDO FOTO...</> : 'CADASTRAR VITRINE'}
-                </button>
-              </div>
-            </form>
+                </figcaption>
+              </figure>
+            ))}
           </div>
+          {pages > 1 && (
+            <div className="flex items-center justify-center gap-3 mt-4">
+              <button className="iconbtn" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} aria-label="Página anterior"><ChevronLeft size={16} /></button>
+              <span className="text-[13px] text-muted">{page + 1} de {pages}</span>
+              <button className="iconbtn" onClick={() => setPage(p => Math.min(pages - 1, p + 1))} disabled={page >= pages - 1} aria-label="Próxima página"><ChevronRight size={16} /></button>
+            </div>
+          )}
+        </>
+      )}
+
+      {isModalOpen && (
+        <div className="overlay" onClick={() => !uploading && setIsModalOpen(false)}>
+          <form role="dialog" aria-modal="true" aria-labelledby="vitrine-modal-title" className="modal max-w-md" onClick={e => e.stopPropagation()} onSubmit={handleSubmit}>
+            <div className="modal-head">
+              <h2 id="vitrine-modal-title">Adicionar à vitrine</h2>
+              <button type="button" disabled={uploading} onClick={() => setIsModalOpen(false)} className="text-muted" aria-label="Fechar"><X size={18} /></button>
+            </div>
+            <div className="modal-body">
+              <div>
+                <label htmlFor="vitrine-file" className="label">Foto</label>
+                <input ref={firstField} id="vitrine-file" type="file" accept={acceptAttr(['image'])} onChange={e => setFile(e.target.files?.[0] || null)} className="input file:mr-3 file:btn file:py-1.5" />
+              </div>
+              <div>
+                <label htmlFor="vitrine-partner" className="label">Parceiro (rede/distribuidor)</label>
+                <input id="vitrine-partner" required className="input" value={partner} onChange={e => setPartner(e.target.value)} placeholder="Ex: Atacadão S/A" />
+              </div>
+              <div>
+                <label htmlFor="vitrine-city" className="label">Cidade - UF</label>
+                <input id="vitrine-city" required className="input" value={city} onChange={e => setCity(e.target.value)} placeholder="Ex: Goiânia - GO" />
+              </div>
+            </div>
+            <div className="modal-foot">
+              <button type="button" className="btn" disabled={uploading} onClick={() => setIsModalOpen(false)}>Cancelar</button>
+              <button type="submit" className="btn-primary" disabled={uploading || !file}>
+                {uploading ? <><Loader2 size={14} className="animate-spin" /> Enviando...</> : 'Cadastrar foto'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
-    </div>
+    </section>
   );
 };

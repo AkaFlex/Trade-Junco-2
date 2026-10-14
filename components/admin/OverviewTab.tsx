@@ -5,10 +5,15 @@ import { TradeRequest, RequestStatus } from '../../types';
 import { Card, SectionTitle, formatBRL, isRequestOverdue } from './shared';
 import { computeRegionStats } from './budget';
 import { monthLocal } from '../../utils/date';
+import { CountUp } from '../shared/CountUp';
+import { RESPONSE_SLA_DAYS } from '../../config';
 
 // Uma cor fixa por região (índice em REGIONS), para a fatia não trocar de cor quando outra some.
 const REGION_COLORS = ['#1B2A4A', '#5F4F9A', '#1D8BD0', '#EE7C1F', '#AECB28', '#D60052', '#FABF29',
                        '#17699F', '#59647A', '#8B7FC1', '#C6DB6A', '#F4A462', '#6FB6E2'];
+
+const TOOLTIP_STYLE = { borderRadius: 4, border: '1px solid #E4E2DA', boxShadow: 'none', fontFamily: 'Barlow', fontSize: 13 };
+const AXIS_TICK = { fill: '#59647A', fontSize: 11, fontFamily: 'Barlow' };
 
 interface Props {
   requests: TradeRequest[];
@@ -17,14 +22,23 @@ interface Props {
   onShowFinance: () => void;
 }
 
-const Kpi: React.FC<{ title: string; value: React.ReactNode; icon: React.ReactNode }> = ({ title, value, icon }) => (
-  <Card className="p-5 flex items-center justify-between gap-3">
+const Kpi: React.FC<{ title: string; value: number; money?: boolean; icon: React.ReactNode }> = ({ title, value, money, icon }) => (
+  <Card className="p-4 flex items-center justify-between gap-3">
     <div className="min-w-0">
-      <p className="text-[11px] font-condensed font-semibold uppercase tracking-wide text-muted truncate">{title}</p>
-      <p className="text-2xl md:text-3xl font-condensed font-bold text-navy truncate">{value}</p>
+      <p className="label mb-1 truncate">{title}</p>
+      <p className="kpi text-2xl md:text-[28px] truncate">
+        <CountUp value={value} format={n => (money ? formatBRL(Math.round(n)) : String(Math.round(n)))} />
+      </p>
     </div>
     <div className="shrink-0 text-muted">{icon}</div>
   </Card>
+);
+
+const Alert: React.FC<{ kind: 'notice-error' | 'notice-warn' | 'notice-info'; onClick: () => void; children: React.ReactNode }> = ({ kind, onClick, children }) => (
+  <button onClick={onClick} className={`${kind} text-left flex items-center justify-between gap-3 hover:border-navy transition-colors duration-150`}>
+    <span>{children}</span>
+    <ArrowRight size={16} className="shrink-0" />
+  </button>
 );
 
 export const OverviewTab: React.FC<Props> = ({ requests, monthlyBudgets, onShowRequests, onShowFinance }) => {
@@ -53,35 +67,32 @@ export const OverviewTab: React.FC<Props> = ({ requests, monthlyBudgets, onShowR
     .filter(s => s.spent > 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {(overdue > 0 || pending > 0 || toSettle > 0) && (
         <div className="grid md:grid-cols-3 gap-3">
           {overdue > 0 && (
-            <button onClick={() => onShowRequests('pending', true)} className="text-left bg-red-50 border border-red-200 rounded-md p-4 flex items-center justify-between gap-3 hover:bg-red-100">
-              <span className="text-sm text-red-800"><strong>{overdue}</strong> solicitação(ões) sem resposta há mais de 3 dias</span>
-              <ArrowRight size={16} className="text-red-700 shrink-0" />
-            </button>
+            <Alert kind="notice-error" onClick={() => onShowRequests('pending', true)}>
+              <strong>{overdue}</strong> solicitação(ões) sem resposta há mais de {RESPONSE_SLA_DAYS} dias
+            </Alert>
           )}
           {pending > 0 && (
-            <button onClick={() => onShowRequests('pending')} className="text-left bg-yellow-50 border border-yellow-300 rounded-md p-4 flex items-center justify-between gap-3 hover:bg-yellow-100">
-              <span className="text-sm text-yellow-900"><strong>{pending}</strong> aguardando aprovação</span>
-              <ArrowRight size={16} className="text-yellow-800 shrink-0" />
-            </button>
+            <Alert kind="notice-warn" onClick={() => onShowRequests('pending')}>
+              <strong>{pending}</strong> aguardando aprovação
+            </Alert>
           )}
           {toSettle > 0 && (
-            <button onClick={onShowFinance} className="text-left bg-purple-50 border border-purple-junco/30 rounded-md p-4 flex items-center justify-between gap-3 hover:bg-purple-100">
-              <span className="text-sm text-purple-junco"><strong>{toSettle}</strong> no Financeiro (a pagar ou aguardando recibo)</span>
-              <ArrowRight size={16} className="text-purple-junco shrink-0" />
-            </button>
+            <Alert kind="notice-info" onClick={onShowFinance}>
+              <strong>{toSettle}</strong> no Financeiro (a pagar ou aguardando recibo)
+            </Alert>
           )}
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <Kpi title={`Pago (${monthLabel})`} value={formatBRL(stats.reduce((a, r) => a + r.realized, 0))} icon={<TrendingUp size={26} />} />
-        <Kpi title={`Previsto (${monthLabel})`} value={formatBRL(stats.reduce((a, r) => a + r.planned, 0))} icon={<Clock size={26} />} />
-        <Kpi title="Pendentes" value={pending} icon={<AlertTriangle size={26} />} />
-        <Kpi title="Financeiro" value={toSettle} icon={<Receipt size={26} />} />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi title={`Pago · ${monthLabel}`} value={stats.reduce((a, r) => a + r.realized, 0)} money icon={<TrendingUp size={24} />} />
+        <Kpi title={`Previsto · ${monthLabel}`} value={stats.reduce((a, r) => a + r.planned, 0)} money icon={<Clock size={24} />} />
+        <Kpi title="Pendentes" value={pending} icon={<AlertTriangle size={24} />} />
+        <Kpi title="No financeiro" value={toSettle} icon={<Receipt size={24} />} />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
@@ -91,11 +102,11 @@ export const OverviewTab: React.FC<Props> = ({ requests, monthlyBudgets, onShowR
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stats}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E4E2DA" />
-                <XAxis dataKey="name" fontSize={11} tickLine={false} axisLine={false} interval={0} angle={-15} textAnchor="end" height={60} />
-                <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={v => `R$${v / 1000}k`} />
-                <Tooltip formatter={(v: number) => formatBRL(v)} />
-                <Bar dataKey="spent" name="Usado" fill="#5F4F9A" radius={[3, 3, 0, 0]} barSize={18} />
-                <Bar dataKey="limit" name="Limite do mês" fill="#E4E2DA" radius={[3, 3, 0, 0]} barSize={18} />
+                <XAxis dataKey="name" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: '#E4E2DA' }} interval={0} angle={-15} textAnchor="end" height={60} />
+                <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} tickFormatter={v => `R$${v / 1000}k`} />
+                <Tooltip formatter={(v: number) => formatBRL(v)} contentStyle={TOOLTIP_STYLE} cursor={{ fill: '#FBF6E9' }} />
+                <Bar dataKey="spent" name="Usado" fill="#1B2A4A" radius={[2, 2, 0, 0]} barSize={16} />
+                <Bar dataKey="limit" name="Limite do mês" fill="#E4E2DA" radius={[2, 2, 0, 0]} barSize={16} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -105,15 +116,15 @@ export const OverviewTab: React.FC<Props> = ({ requests, monthlyBudgets, onShowR
           <SectionTitle>Distribuição do investimento por região</SectionTitle>
           <div className="h-72 w-full min-w-0">
             {pieData.length === 0 ? (
-              <p className="h-full flex items-center justify-center text-sm text-muted">Sem investimento registrado neste mês.</p>
+              <p className="empty h-full flex items-center justify-center">Sem investimento registrado neste mês.</p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={4} dataKey="spent">
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} dataKey="spent" stroke="#FFFFFF">
                     {pieData.map(d => <Cell key={d.name} fill={d.color} />)}
                   </Pie>
-                  <Tooltip formatter={(v: number) => formatBRL(v)} />
-                  <Legend verticalAlign="bottom" height={36} />
+                  <Tooltip formatter={(v: number) => formatBRL(v)} contentStyle={TOOLTIP_STYLE} />
+                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontFamily: 'Barlow', fontSize: 12, color: '#59647A' }} />
                 </PieChart>
               </ResponsiveContainer>
             )}
@@ -122,18 +133,22 @@ export const OverviewTab: React.FC<Props> = ({ requests, monthlyBudgets, onShowR
       </div>
 
       <Card className="p-5 min-w-0">
-        <SectionTitle icon={<ShoppingBag size={18} />}>Performance de produtos (Sell-Out)</SectionTitle>
+        <SectionTitle icon={<ShoppingBag size={16} />}>Performance de produtos (Sell-Out)</SectionTitle>
         <div className="h-72 w-full min-w-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={productPerformance} layout="vertical" margin={{ left: 10, right: 30 }}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E4E2DA" />
-              <XAxis type="number" hide />
-              <YAxis dataKey="name" type="category" width={130} style={{ fontSize: '11px', fontWeight: 600 }} />
-              <Tooltip cursor={{ fill: 'transparent' }} />
-              <Bar dataKey="qty" name="Unidades vendidas" fill="#D60052" radius={[0, 3, 3, 0]} barSize={22}
-                label={{ position: 'right', fill: '#59647A', fontSize: 12, fontWeight: 600 }} />
-            </BarChart>
-          </ResponsiveContainer>
+          {productPerformance.length === 0 ? (
+            <p className="empty h-full flex items-center justify-center">Nenhum relatório de Sell-Out ainda.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={productPerformance} layout="vertical" margin={{ left: 10, right: 30 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E4E2DA" />
+                <XAxis type="number" hide />
+                <YAxis dataKey="name" type="category" width={140} tick={{ ...AXIS_TICK, fill: '#1B2A4A', fontWeight: 600 }} />
+                <Tooltip cursor={{ fill: '#FBF6E9' }} contentStyle={TOOLTIP_STYLE} />
+                <Bar dataKey="qty" name="Unidades vendidas" fill="#5F4F9A" radius={[0, 2, 2, 0]} barSize={20}
+                  label={{ position: 'right', fill: '#59647A', fontSize: 12, fontWeight: 600 }} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </Card>
     </div>

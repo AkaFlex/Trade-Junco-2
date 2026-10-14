@@ -12,17 +12,17 @@ interface Props {
 }
 
 const Block: React.FC<{ title: string; icon: React.ReactNode; children: React.ReactNode }> = ({ title, icon, children }) => (
-  <section className="border border-line rounded-md p-4">
-    <h4 className="font-condensed font-bold uppercase tracking-wide text-navy mb-3 flex items-center gap-2">{icon}{title}</h4>
+  <section className="card-inner bg-white p-4">
+    <h4 className="section-title mb-3 flex items-center gap-2">{icon}{title}</h4>
     {children}
   </section>
 );
 
 const Links: React.FC<{ urls: string[]; label: string }> = ({ urls, label }) =>
-  urls.length === 0 ? <p className="text-sm text-muted">Nenhum arquivo.</p> : (
+  urls.length === 0 ? <p className="text-[13px] text-muted">Nenhum arquivo.</p> : (
     <div className="flex flex-wrap gap-2">
       {urls.map((url, i) => (
-        <a key={url + i} href={url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 bg-paper border border-line px-3 py-1.5 rounded text-sm text-blue-text hover:underline">
+        <a key={url + i} href={url} target="_blank" rel="noreferrer" className="iconbtn gap-1.5 text-[13px] text-blue-text">
           <Eye size={14} /> {label} {i + 1}
         </a>
       ))}
@@ -44,30 +44,30 @@ export const RequestDetailsModal: React.FC<Props> = ({ request: r, payment, onCl
   const receipts = (r.receiptUrls || [r.receiptUrl]).filter(Boolean) as string[];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-labelledby="details-title" className="bg-white rounded-md shadow-modal w-full max-w-4xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="bg-navy px-5 py-3 flex justify-between items-center text-white sticky top-0 z-10">
-          <h3 id="details-title" className="font-condensed font-bold uppercase tracking-wide flex items-center gap-2"><FileText size={18} /> Detalhes da solicitação</h3>
-          <button onClick={onClose} aria-label="Fechar" className="hover:bg-white/10 p-1 rounded"><X /></button>
+    <div className="overlay" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-labelledby="details-title" className="modal max-w-4xl" onClick={e => e.stopPropagation()}>
+        <div className="modal-head sticky top-0 bg-white z-10 rounded-t-md">
+          <h2 id="details-title" className="flex items-center gap-2"><FileText size={17} /> Detalhes da solicitação</h2>
+          <button onClick={onClose} aria-label="Fechar" className="text-muted hover:text-navy"><X size={18} /></button>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="px-6 py-5 space-y-4">
           <div className="flex flex-col md:flex-row justify-between items-start gap-4">
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-1">
-                <span className="font-condensed font-bold text-purple-junco text-xl">{r.tradeCode}</span>
+                <span className="font-condensed font-black text-navy text-xl">{r.tradeCode}</span>
                 <TypeBadge request={r} />
               </div>
-              <h2 className="text-xl font-semibold text-gray-800">Parceiro: {r.partnerCode}</h2>
-              <p className="text-muted text-sm">{r.region}{r.city ? ` · ${r.city}` : ''}</p>
+              <p className="text-[16px] font-semibold text-navy">Parceiro: {r.partnerCode}</p>
+              <p className="text-muted text-[13px]">{r.region}{r.city ? ` · ${r.city}` : ''}</p>
               <div className="mt-2"><StatusBadge status={r.status} overdue={isRequestOverdue(r)} requestType={r.requestType} /></div>
-              {r.rejectionReason && <p className="text-sm text-gray-700 mt-2"><strong>Motivo:</strong> {r.rejectionReason}</p>}
+              {r.rejectionReason && <div className={`${r.status === 'rejected' ? 'notice-error' : 'notice'} mt-2`}><strong>Motivo:</strong> {r.rejectionReason}</div>}
             </div>
             {!isEventLike(r) && (
               <div className="text-right">
-                <div className="text-[11px] font-condensed font-semibold uppercase tracking-wide text-muted">Valor aprovado</div>
-                <div className="text-3xl font-condensed font-bold text-navy">{formatBRL(r.totalValue)}</div>
-                <div className="text-xs text-muted">{r.days} dia(s) · ação em {formatDateBR(r.dateOfAction)}</div>
+                <div className="label mb-0">Valor aprovado</div>
+                <div className="kpi text-3xl">{formatBRL(r.totalValue)}</div>
+                <div className="text-[12px] text-muted">{r.days} dia(s) · ação em {formatDateBR(r.dateOfAction)}</div>
               </div>
             )}
           </div>
@@ -91,7 +91,7 @@ export const RequestDetailsModal: React.FC<Props> = ({ request: r, payment, onCl
               </div>
               {spacePhotos.length > 0 && (
                 <div className="mt-4">
-                  <span className="block text-[11px] font-condensed font-semibold uppercase tracking-wide text-muted mb-2">Fotos do espaço</span>
+                  <span className="label mb-2">Fotos do espaço</span>
                   <div className="flex flex-wrap gap-3">
                     {spacePhotos.map((url, i) => (
                       <a key={url + i} href={url} target="_blank" rel="noreferrer">
@@ -102,17 +102,17 @@ export const RequestDetailsModal: React.FC<Props> = ({ request: r, payment, onCl
                 </div>
               )}
               <div className="mt-4 pt-4 border-t border-line">
-                <h5 className="text-sm font-semibold text-navy flex items-center gap-2 mb-1"><Shield size={14} /> Controle interno (só gestão)</h5>
-                <p className="text-xs text-muted mb-2">Gráfica/fornecedor que vai produzir. O RCA não vê este campo.</p>
+                <h5 className="section-title text-[13px] flex items-center gap-2 mb-1"><Shield size={14} /> Controle interno (só gestão)</h5>
+                <p className="hint mb-2">Gráfica/fornecedor que vai produzir. O RCA não vê este campo.</p>
                 {editingSupplier ? (
                   <div className="flex flex-col md:flex-row gap-2">
-                    <input aria-label="Gráfica atribuída" className="flex-1 border border-line rounded-md p-2.5" placeholder="Ex: Gráfica Expressa da Cidade" value={supplier} onChange={e => setSupplier(e.target.value)} />
-                    <button onClick={async () => { await onSaveSupplier(r, supplier); setEditingSupplier(false); }} className="bg-navy text-white px-5 py-2.5 rounded-md font-condensed font-semibold uppercase tracking-wide text-sm">Salvar</button>
+                    <input aria-label="Gráfica atribuída" className="input flex-1" placeholder="Ex: Gráfica Expressa da Cidade" value={supplier} onChange={e => setSupplier(e.target.value)} />
+                    <button onClick={async () => { await onSaveSupplier(r, supplier); setEditingSupplier(false); }} className="btn-primary">Salvar</button>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between bg-paper border border-line rounded-md p-3">
+                  <div className="card-inner flex items-center justify-between p-3">
                     <span className="font-semibold text-navy">{r.adminAssignedSupplier}</span>
-                    <button onClick={() => setEditingSupplier(true)} className="text-xs font-bold text-navy border border-line bg-white rounded px-3 py-1.5">Editar</button>
+                    <button onClick={() => setEditingSupplier(true)} className="btn">Editar</button>
                   </div>
                 )}
               </div>
@@ -162,7 +162,7 @@ export const RequestDetailsModal: React.FC<Props> = ({ request: r, payment, onCl
 
           {r.days > 1 && r.justification && (
             <Block title="Justificativa (+1 dia)" icon={<AlertTriangle size={16} />}>
-              <p className="text-sm text-gray-800 italic">"{r.justification}"</p>
+              <p className="text-[13.5px] italic">"{r.justification}"</p>
             </Block>
           )}
 
@@ -171,12 +171,12 @@ export const RequestDetailsModal: React.FC<Props> = ({ request: r, payment, onCl
               <div className="grid md:grid-cols-2 gap-4">
                 {!isEventLike(r) && (
                   <div>
-                    <span className="block text-[11px] font-condensed font-semibold uppercase tracking-wide text-muted mb-2">Fotos da ação</span>
+                    <span className="label mb-2">Fotos da ação</span>
                     <Links urls={photos} label="Foto" />
                   </div>
                 )}
                 <div>
-                  <span className="block text-[11px] font-condensed font-semibold uppercase tracking-wide text-muted mb-2">{isEventLike(r) ? 'Recibos / NF' : 'Comprovantes'}</span>
+                  <span className="label mb-2">{isEventLike(r) ? 'Recibos / NF' : 'Comprovantes'}</span>
                   <Links urls={receipts} label="Arquivo" />
                 </div>
               </div>
@@ -186,22 +186,22 @@ export const RequestDetailsModal: React.FC<Props> = ({ request: r, payment, onCl
           {r.salesReports && r.salesReports.length > 0 && (
             <Block title={`Relatórios de Sell-Out (${r.salesReports.length}/${r.days})`} icon={<ShoppingBag size={16} />}>
               <div className="overflow-x-auto">
-                <table className="w-full text-xs">
+                <table className="table">
                   <thead>
-                    <tr className="text-muted text-left border-b border-line">
-                      <th className="pb-2">Data</th><th className="pb-2">Vendedor</th><th className="pb-2">Loja</th><th className="pb-2">Produtos vendidos</th>
+                    <tr>
+                      <th>Data</th><th>Vendedor</th><th>Loja</th><th>Produtos vendidos</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-line">
+                  <tbody>
                     {r.salesReports.map((rep, idx) => (
                       <tr key={idx}>
-                        <td className="py-2 align-top">{new Date(rep.date).toLocaleDateString('pt-BR')}</td>
-                        <td className="py-2 align-top">{rep.sellerName}</td>
-                        <td className="py-2 align-top">{rep.storeName}</td>
-                        <td className="py-2 align-top">
+                        <td>{new Date(rep.date).toLocaleDateString('pt-BR')}</td>
+                        <td>{rep.sellerName}</td>
+                        <td>{rep.storeName}</td>
+                        <td>
                           <div className="flex flex-wrap gap-1">
                             {rep.products.filter(p => p.qty > 0).map((p, i) => (
-                              <span key={i} className="bg-paper border border-line px-2 py-0.5 rounded text-[10px]">{p.name}: <strong className="text-pink-junco">{p.qty}</strong></span>
+                              <span key={i} className="badge">{p.name}: <strong className="text-navy">{p.qty}</strong></span>
                             ))}
                           </div>
                         </td>
@@ -213,11 +213,11 @@ export const RequestDetailsModal: React.FC<Props> = ({ request: r, payment, onCl
             </Block>
           )}
 
-          {r.updatedBy && <p className="text-xs text-muted text-right">Última alteração por {r.updatedBy}</p>}
+          {r.updatedBy && <p className="text-[12px] text-muted text-right">Última alteração por {r.updatedBy}</p>}
         </div>
 
-        <div className="px-5 py-3 border-t border-line flex justify-end">
-          <button onClick={onClose} className="bg-navy text-white px-5 py-2 rounded-md font-condensed font-semibold uppercase tracking-wide text-sm">Fechar</button>
+        <div className="modal-foot">
+          <button onClick={onClose} className="btn-primary">Fechar</button>
         </div>
       </div>
     </div>

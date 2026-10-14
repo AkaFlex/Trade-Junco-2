@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { LayoutDashboard, ListChecks, Wallet, Settings, Loader2, Archive, Shield, FileSpreadsheet, AlertTriangle, X } from 'lucide-react';
+import { LayoutDashboard, ListChecks, Wallet, Settings, Loader2, Archive, Shield, FileSpreadsheet, X } from 'lucide-react';
 import { TradeRequest, PaymentInfo, RequestStatus } from '../types';
 import {
   getAllRequests, updateRequestStatus, adminUpdateRequest, getPaymentInfo,
@@ -256,54 +256,41 @@ export const AdminPanel: React.FC = () => {
   };
 
   return (
-    <div className="p-4 md:p-8 bg-paper min-h-screen">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-condensed font-bold uppercase tracking-wide text-navy flex items-center gap-2">
-              <Shield size={28} /> Painel de Gestão
-            </h1>
-            <p className="text-muted text-sm">Aprovações, financeiro e configurações do Trade</p>
+    <div className="min-h-full">
+      {/* Cabeçalho do painel no padrão Junco: superfície branca, borda inferior, abas com sublinhado laranja. */}
+      <div className="bg-white border-b border-line">
+        <div className="max-w-[1400px] mx-auto px-4 md:px-8 pt-5">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-baseline gap-3 pb-4">
+            <div>
+              <h1 className="page-title">Painel de gestão</h1>
+              <p className="page-sub">Aprovações, financeiro e configurações do Trade</p>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={handleBackup} disabled={maintenanceBusy} title="Baixa uma cópia (JSON) de todas as coleções" className="btn"><Archive size={15} /> Backup</button>
+              <button onClick={handleMigration} disabled={maintenanceBusy} title="Indexa os códigos TJ e protege os dados de PIX" className="btn"><Shield size={15} /> Migrar segurança</button>
+              <button onClick={handleExport} disabled={maintenanceBusy} className="btn-primary"><FileSpreadsheet size={15} /> Exportar CSV</button>
+            </div>
           </div>
-          <div className="flex gap-2 flex-wrap">
-            <button onClick={handleBackup} disabled={maintenanceBusy} title="Baixa uma cópia (JSON) de todas as coleções"
-              className="bg-white text-gray-700 border border-line px-3 py-2 rounded-md flex items-center gap-2 font-condensed font-semibold uppercase tracking-wide text-sm hover:bg-paper disabled:opacity-50">
-              <Archive size={16} /> Backup
-            </button>
-            <button onClick={handleMigration} disabled={maintenanceBusy} title="Indexa os códigos TJ e protege os dados de PIX (rodar após publicar as regras novas)"
-              className="bg-white text-gray-700 border border-line px-3 py-2 rounded-md flex items-center gap-2 font-condensed font-semibold uppercase tracking-wide text-sm hover:bg-paper disabled:opacity-50">
-              <Shield size={16} /> Migrar segurança
-            </button>
-            <button onClick={handleExport} disabled={maintenanceBusy}
-              className="bg-navy text-white px-3 py-2 rounded-md flex items-center gap-2 font-condensed font-semibold uppercase tracking-wide text-sm hover:opacity-90 disabled:opacity-50">
-              <FileSpreadsheet size={16} /> Exportar CSV
-            </button>
-          </div>
+          <nav className="tabs no-scrollbar" role="tablist" aria-label="Seções do painel">
+            {TABS.map(t => {
+              const badge = t.key === 'requests' ? counts.requests : t.key === 'finance' ? counts.finance : 0;
+              return (
+                <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)} className={tab === t.key ? 'tab tab-active' : 'tab'}>
+                  {t.icon} {t.label}
+                  {badge > 0 && <span className="count">{badge}</span>}
+                  {t.key === 'requests' && counts.overdue > 0 && <span className="badge-error" title="Atrasados">{counts.overdue} atrasado(s)</span>}
+                </button>
+              );
+            })}
+          </nav>
         </div>
+      </div>
 
-        <nav className="flex gap-1 mb-6 border-b border-line overflow-x-auto no-scrollbar" role="tablist" aria-label="Seções do painel">
-          {TABS.map(t => {
-            const badge = t.key === 'requests' ? counts.requests : t.key === 'finance' ? counts.finance : 0;
-            return (
-              <button
-                key={t.key}
-                role="tab"
-                aria-selected={tab === t.key}
-                onClick={() => setTab(t.key)}
-                className={`flex items-center gap-2 px-4 py-2.5 -mb-px border-b-2 font-condensed font-semibold uppercase tracking-wide text-sm whitespace-nowrap ${tab === t.key ? 'border-navy text-navy' : 'border-transparent text-muted hover:text-navy'}`}
-              >
-                {t.icon} {t.label}
-                {badge > 0 && <span className={`text-[10px] px-1.5 rounded ${tab === t.key ? 'bg-navy text-white' : 'bg-line text-gray-700'}`}>{badge}</span>}
-                {t.key === 'requests' && counts.overdue > 0 && <span className="text-[10px] px-1.5 rounded bg-red-600 text-white" title="Atrasados">{counts.overdue}</span>}
-              </button>
-            );
-          })}
-        </nav>
-
+      <div className="page">
         {loading ? (
-          <div className="flex justify-center py-20"><Loader2 className="animate-spin text-navy" size={40} /></div>
+          <div className="loading flex justify-center"><Loader2 className="animate-spin text-navy" size={32} /></div>
         ) : (
-          <>
+          <div key={tab} className="view-in">
             {tab === 'overview' && (
               <OverviewTab
                 requests={requests}
@@ -336,35 +323,27 @@ export const AdminPanel: React.FC = () => {
               />
             )}
             {tab === 'settings' && <SettingsTab requests={requests} onBudgetsChanged={loadBudgets} />}
-          </>
+          </div>
         )}
       </div>
 
       {rejecting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setRejecting(null)}>
-          <div role="dialog" aria-modal="true" aria-labelledby="reject-title" className="bg-white rounded-md shadow-modal w-full max-w-md p-5" onClick={e => e.stopPropagation()}
+        <div className="overlay" onClick={() => setRejecting(null)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="reject-title" className="modal max-w-md" onClick={e => e.stopPropagation()}
             onKeyDown={e => { if (e.key === 'Escape') setRejecting(null); }}>
-            <div className="flex justify-between items-center mb-3">
-              <h3 id="reject-title" className="font-condensed font-bold uppercase tracking-wide text-navy flex items-center gap-2">
-                <AlertTriangle className="text-red-600" size={18} /> Recusar {rejecting.tradeCode}
-              </h3>
+            <div className="modal-head">
+              <h2 id="reject-title">Recusar {rejecting.tradeCode}</h2>
               <button onClick={() => setRejecting(null)} aria-label="Fechar" className="text-muted"><X size={18} /></button>
             </div>
-            <label htmlFor="reject-reason" className="block text-[11px] font-condensed font-semibold uppercase tracking-wide text-muted mb-1">Motivo (visível para o RCA)</label>
-            <textarea
-              id="reject-reason"
-              className="w-full border border-line rounded-md p-3 text-sm focus:ring-2 focus:ring-red-300 outline-none mb-4"
-              rows={4}
-              placeholder="Ex: Valor incorreto, data indisponível..."
-              value={rejectionReason}
-              onChange={e => setRejectionReason(e.target.value)}
-              autoFocus
-            />
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setRejecting(null)} className="px-4 py-2 rounded border border-line text-gray-700 font-condensed font-semibold uppercase tracking-wide text-sm">Cancelar</button>
-              <button onClick={confirmReject} disabled={!rejectionReason.trim() || busyId === rejecting.id} className="bg-red-600 text-white px-4 py-2 rounded font-condensed font-semibold uppercase tracking-wide text-sm disabled:opacity-50">
-                Confirmar recusa
-              </button>
+            <div className="modal-body">
+              <div>
+                <label htmlFor="reject-reason" className="label">Motivo (visível para o RCA)</label>
+                <textarea id="reject-reason" className="input" rows={4} placeholder="Ex: valor incorreto, data indisponível..." value={rejectionReason} onChange={e => setRejectionReason(e.target.value)} autoFocus />
+              </div>
+            </div>
+            <div className="modal-foot">
+              <button onClick={() => setRejecting(null)} className="btn">Cancelar</button>
+              <button onClick={confirmReject} disabled={!rejectionReason.trim() || busyId === rejecting.id} className="btn-danger">Recusar solicitação</button>
             </div>
           </div>
         </div>

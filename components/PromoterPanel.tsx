@@ -5,7 +5,7 @@ import { getProducts } from '../services/productsService';
 import { TradeRequest, SalesReport, ProductCount } from '../types';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { Search, Store, Calendar, Save, CheckCircle, ArrowLeft, Lock, ListChecks, Loader2 } from 'lucide-react';
+import { Search, Store, Calendar, Save, CheckCircle, ArrowLeft, ListChecks, Loader2 } from 'lucide-react';
 import { useToast } from './shared/Toast';
 
 export const PromoterPanel: React.FC<{ initialCode?: string }> = ({ initialCode }) => {
@@ -165,113 +165,72 @@ export const PromoterPanel: React.FC<{ initialCode?: string }> = ({ initialCode 
 
   // ---- SELECTED REQUEST VIEW ----
   if (selectedRequest) {
+    const pct = Math.min((reportStatus.current / reportStatus.total) * 100, 100);
     return (
-      <div className="max-w-3xl mx-auto p-4 md:p-8 animate-in fade-in duration-300">
-        <button onClick={() => setSelectedRequest(null)} className="flex items-center gap-2 text-gray-500 hover:text-pink-600 mb-6 font-bold transition">
-          <ArrowLeft size={20}/> Voltar para Busca
-        </button>
+      <div className="page-narrow view-in space-y-4">
+        <button onClick={() => setSelectedRequest(null)} className="btn"><ArrowLeft size={15} /> Voltar para a busca</button>
 
-        <div className="bg-white rounded-md shadow-sm border border-gray-100 p-6 mb-8">
-          <div className="flex justify-between items-start">
+        <div className="card p-5">
+          <div className="flex justify-between items-start gap-4">
             <div>
-              <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-2">Relatório de Sell-Out</h2>
-              <p className="text-sm md:text-base text-gray-500">
-                Código da Ação: <strong className="text-pink-600">{selectedRequest.tradeCode || 'N/A'}</strong>
-                <span className="mx-2">•</span> Parceiro: <strong>{selectedRequest.partnerCode}</strong>
+              <h1 className="page-title">Relatório de Sell-Out</h1>
+              <p className="page-sub">
+                Código: <strong className="text-navy">{selectedRequest.tradeCode || '—'}</strong> · Parceiro: <strong className="text-navy">{selectedRequest.partnerCode}</strong>
               </p>
             </div>
-            <div className="text-right">
-              <div className="text-xs font-bold text-gray-400 uppercase mb-1">Progresso</div>
-              <div className={`text-2xl font-bold ${reportStatus.isComplete ? 'text-green-600' : 'text-pink-600'}`}>
-                {reportStatus.current} <span className="text-gray-400 text-lg">/ {reportStatus.total}</span>
-              </div>
+            <div className="text-right shrink-0">
+              <p className="label">Progresso</p>
+              <p className="kpi text-2xl">{reportStatus.current}<span className="text-muted text-lg"> / {reportStatus.total}</span></p>
             </div>
           </div>
-
-          {/* Progress Bar */}
-          <div className="mt-4 w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-            <div
-              className={`h-full transition-all duration-500 ${reportStatus.isComplete ? 'bg-green-500' : 'bg-pink-500'}`}
-              style={{ width: `${Math.min((reportStatus.current / reportStatus.total) * 100, 100)}%` }}
-            ></div>
+          <div className="mt-4 w-full bg-paper border border-line rounded h-3 overflow-hidden" role="progressbar" aria-valuenow={reportStatus.current} aria-valuemin={0} aria-valuemax={reportStatus.total}>
+            <div className={`h-full transition-all duration-200 ${reportStatus.isComplete ? 'bg-green-junco' : 'bg-orange-junco'}`} style={{ width: `${pct}%` }} />
           </div>
-
-          <div className="mt-4 flex gap-4 text-sm bg-gray-50 p-3 rounded-lg flex-wrap">
-            <div className="flex items-center gap-2">
-              <Calendar size={16} className="text-pink-500"/>
-              <span className="font-bold text-gray-700">Início: {formatDate(selectedRequest.dateOfAction)}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Store size={16} className="text-pink-500"/>
-              <span className="font-bold text-gray-700">Região: {selectedRequest.region}</span>
-            </div>
+          <div className="mt-3 flex gap-4 text-[13px] text-muted flex-wrap">
+            <span className="flex items-center gap-1.5"><Calendar size={14} /> Início: {formatDate(selectedRequest.dateOfAction)}</span>
+            <span className="flex items-center gap-1.5"><Store size={14} /> Região: {selectedRequest.region}</span>
           </div>
         </div>
 
         {reportStatus.isComplete ? (
-          <div className="bg-green-50 border border-green-200 rounded-md p-8 text-center mb-8 shadow-sm animate-in fade-in">
-            <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle size={32} className="text-green-600"/>
-            </div>
-            <h3 className="text-xl font-bold text-green-800 mb-2">Processo Finalizado</h3>
-            <p className="text-green-700 mb-6">Todos os relatórios ({reportStatus.total} dias) foram enviados com sucesso.</p>
-            <button disabled className="bg-white text-gray-400 border border-gray-200 px-6 py-3 rounded-md font-bold flex items-center gap-2 mx-auto cursor-not-allowed">
-              <Lock size={18}/> Ação Concluída
-            </button>
+          <div className="notice-ok text-center py-6">
+            <CheckCircle size={28} className="mx-auto mb-2" />
+            <p className="section-title text-[#3F5509] mb-1">Processo finalizado</p>
+            <p>Todos os relatórios ({reportStatus.total} dia(s)) foram enviados.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-md shadow-lg border border-pink-100 overflow-hidden animate-in fade-in">
-            <div className="bg-pink-600 p-4 text-white font-bold text-lg flex items-center gap-2 justify-between">
-              <div className="flex items-center gap-2"><Save size={20}/> Novo Relatório</div>
-              <span className="text-xs bg-white/20 px-2 py-1 rounded">Relatório {reportStatus.current + 1} de {reportStatus.total}</span>
+          <div className="card">
+            <div className="card-head flex items-center justify-between gap-3">
+              <h2 className="section-title flex items-center gap-2"><Save size={16} /> Novo relatório</h2>
+              <span className="badge-info">Relatório {reportStatus.current + 1} de {reportStatus.total}</span>
             </div>
-            <div className="p-4 md:p-6">
-              <div className="grid md:grid-cols-2 gap-4 mb-6">
+            <div className="p-5 space-y-5">
+              <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Nome da Loja *</label>
-                  <input
-                    className="w-full border p-3 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none"
-                    value={storeName}
-                    onChange={e => setStoreName(e.target.value)}
-                    placeholder="Ex: Supermercado X"
-                  />
+                  <label htmlFor="so-store" className="label">Nome da loja *</label>
+                  <input id="so-store" className="input" value={storeName} onChange={e => setStoreName(e.target.value)} placeholder="Ex: Supermercado X" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Nome Vendedor *</label>
-                  <input
-                    className="w-full border p-3 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none"
-                    value={sellerName}
-                    onChange={e => setSellerName(e.target.value)}
-                    placeholder="Nome Completo"
-                  />
+                  <label htmlFor="so-seller" className="label">Nome do vendedor *</label>
+                  <input id="so-seller" className="input" value={sellerName} onChange={e => setSellerName(e.target.value)} placeholder="Nome completo" />
                 </div>
               </div>
 
-              <div className="mb-8 overflow-hidden">
-                <h4 className="text-sm font-bold text-gray-600 mb-3 uppercase border-b pb-2">Vendas do Dia (Unidades)</h4>
+              <div>
+                <p className="label">Vendas do dia (unidades)</p>
                 {productsLoading ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="animate-spin text-pink-500" size={28}/>
-                  </div>
+                  <div className="loading flex justify-center"><Loader2 className="animate-spin text-navy" size={24} /></div>
                 ) : counts.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400 text-sm">
-                    Nenhum produto cadastrado. Contate o administrador.
-                  </div>
+                  <div className="empty">Nenhum produto cadastrado. Fale com o gestor de Trade.</div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto pr-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {counts.map((item, idx) => (
-                      <div key={item.name} className="flex justify-between items-center bg-gray-50 p-2 md:p-3 rounded-lg border border-gray-100 hover:border-pink-200 transition">
-                        <span className="text-xs md:text-sm font-bold text-gray-700 leading-tight pr-2">{item.name}</span>
-                        <div className="flex items-center gap-2 md:gap-3 shrink-0">
-                          <button
-                            onClick={() => handleQtyChange(idx, -1)}
-                            className="w-8 h-8 bg-white border border-gray-300 rounded-full text-gray-600 hover:bg-gray-100 font-bold shadow-sm"
-                          >-</button>
-                          <span className="w-6 text-center text-base md:text-lg font-bold text-pink-700">{item.qty}</span>
-                          <button
-                            onClick={() => handleQtyChange(idx, 1)}
-                            className="w-8 h-8 bg-pink-600 text-white rounded-full hover:bg-pink-700 font-bold shadow-md"
-                          >+</button>
+                      <div key={item.name} className="card-inner flex justify-between items-center gap-3 px-3 py-2">
+                        <span className="text-[13.5px] font-semibold text-navy leading-tight">{item.name}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button onClick={() => handleQtyChange(idx, -1)} className="iconbtn w-9 h-9" aria-label={`Diminuir ${item.name}`}>−</button>
+                          <span className="w-8 text-center kpi text-lg" aria-live="polite">{item.qty}</span>
+                          <button onClick={() => handleQtyChange(idx, 1)} className="iconbtn w-9 h-9 bg-navy text-white border-navy" aria-label={`Aumentar ${item.name}`}>+</button>
                         </div>
                       </div>
                     ))}
@@ -279,34 +238,27 @@ export const PromoterPanel: React.FC<{ initialCode?: string }> = ({ initialCode 
                 )}
               </div>
 
-              <button
-                onClick={submitReport}
-                disabled={submitting}
-                className="w-full bg-pink-600 text-white py-4 rounded-md font-bold text-lg shadow-lg hover:bg-pink-700 transition transform hover:-translate-y-1 disabled:opacity-50 disabled:translate-y-0 flex items-center justify-center gap-2"
-              >
-                {submitting ? <><Loader2 className="animate-spin" size={20}/> Enviando...</> : `SALVAR RELATÓRIO ${reportStatus.current + 1}`}
+              <button onClick={submitReport} disabled={submitting} className="btn-primary btn-lg w-full">
+                {submitting ? <><Loader2 className="animate-spin" size={16} /> Enviando...</> : `Salvar relatório ${reportStatus.current + 1}`}
               </button>
             </div>
           </div>
         )}
 
-        {/* History */}
         {selectedRequest.salesReports && selectedRequest.salesReports.length > 0 && (
-          <div className="mt-8">
-            <h3 className="font-bold text-gray-500 uppercase text-sm mb-4">Histórico de Envios</h3>
-            <div className="space-y-3">
+          <div className="card">
+            <div className="card-head"><h3 className="section-title">Histórico de envios</h3></div>
+            <ul className="divide-y divide-line">
               {selectedRequest.salesReports.map((r, i) => (
-                <div key={i} className="bg-white p-4 rounded-md border border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <li key={i} className="px-5 py-3 flex flex-col md:flex-row md:items-center justify-between gap-2">
                   <div>
-                    <div className="font-bold text-gray-800">{r.storeName}</div>
-                    <div className="text-xs text-gray-500">Vendedor: {r.sellerName} • {formatDate(r.date)}</div>
+                    <div className="font-semibold text-navy">{r.storeName}</div>
+                    <div className="text-[12.5px] text-muted">Vendedor: {r.sellerName} · {formatDate(r.date)}</div>
                   </div>
-                  <div className="text-green-600 flex items-center gap-1 font-bold text-sm shrink-0">
-                    <CheckCircle size={16}/> Enviado ({i+1}/{reportStatus.total})
-                  </div>
-                </div>
+                  <span className="badge-ok"><CheckCircle size={12} /> Enviado ({i + 1}/{reportStatus.total})</span>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
         )}
       </div>
@@ -315,61 +267,50 @@ export const PromoterPanel: React.FC<{ initialCode?: string }> = ({ initialCode 
 
   // ---- SEARCH VIEW ----
   return (
-    <div className="p-4 md:p-8 max-w-4xl mx-auto animate-in fade-in duration-500">
-      <div className="bg-pink-600 text-white p-6 md:p-8 rounded-md shadow-sm mb-8 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-        <h1 className="text-2xl md:text-3xl font-extrabold mb-2 relative z-10">Sell Out</h1>
-        <p className="text-pink-100 relative z-10 text-sm md:text-base">Busque pelo Código da Ação para preencher seus relatórios de venda.</p>
+    <div className="page-narrow view-in space-y-4">
+      <div>
+        <h1 className="page-title">Sell-Out</h1>
+        <p className="page-sub">Busque pelo código da ação para preencher seus relatórios de venda.</p>
       </div>
 
-      <div className="bg-white p-4 md:p-6 rounded-md shadow-sm border border-gray-100 mb-8">
-        <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4">
-          <input
-            className="flex-1 border-2 border-gray-100 bg-gray-50 p-4 rounded-md font-bold text-lg text-gray-700 uppercase placeholder-gray-400 focus:border-pink-500 focus:bg-white outline-none transition"
-            placeholder="Ex: TJ-A1B2C3"
-            value={tradeCode}
-            onChange={e => setTradeCode(e.target.value)}
-          />
-          <button
-            type="submit"
-            disabled={loadingSearch}
-            className="bg-gray-900 text-white p-4 md:px-8 rounded-md font-bold hover:bg-black transition flex items-center justify-center gap-2 disabled:opacity-60"
-          >
-            {loadingSearch ? <Loader2 className="animate-spin" size={20}/> : <Search size={20}/>} BUSCAR
-          </button>
-        </form>
-      </div>
+      <form onSubmit={handleSearch} className="card p-4 flex flex-col md:flex-row gap-3">
+        <label htmlFor="so-code" className="sr-only">Código da ação</label>
+        <input
+          id="so-code"
+          className="input md:flex-1 uppercase font-semibold text-[15px]"
+          placeholder="Ex: TJ-7KQ4M9X2PA"
+          value={tradeCode}
+          onChange={e => setTradeCode(e.target.value)}
+          autoCapitalize="characters"
+        />
+        <button type="submit" disabled={loadingSearch} className="btn-primary">
+          {loadingSearch ? <Loader2 className="animate-spin" size={16} /> : <Search size={16} />} Buscar
+        </button>
+      </form>
 
       {searched && (
-        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-          <h3 className="font-bold text-gray-400 uppercase text-xs tracking-wider">Ações Encontradas</h3>
+        <div className="space-y-3 view-in">
+          <h2 className="label">Ações encontradas</h2>
           {requests.length === 0 ? (
-            <div className="text-center py-12 bg-gray-50 rounded-md border border-dashed border-gray-300 text-gray-400">
-              Nenhuma solicitação encontrada com este código, ou ela não está mais aprovada.
-            </div>
+            <div className="card empty">Nenhuma ação em execução encontrada com este código.</div>
           ) : (
             requests.map(req => {
               const status = getReportStatus(req);
               return (
-                <div key={req.id} className="bg-white p-4 md:p-6 rounded-md shadow-sm border border-gray-100 flex flex-col md:flex-row md:justify-between md:items-center gap-4 group hover:border-pink-200 transition">
+                <div key={req.id} className="card border-l-4 border-l-pink-junco p-4 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
                   <div>
-                    <div className="font-black text-lg md:text-xl text-brand-red mb-1">{req.tradeCode || 'S/ Código'}</div>
-                    <div className="font-bold text-gray-800 mb-2">{req.region} • Parc: {req.partnerCode}</div>
-                    <div className="flex items-center gap-4 text-sm text-gray-500 flex-wrap">
-                      <span className="flex items-center gap-1 shrink-0"><Calendar size={14}/> {formatDate(req.dateOfAction)}</span>
-                      <span className="bg-gray-100 px-2 py-0.5 rounded text-xs font-bold text-gray-600 shrink-0">{req.days} dia(s)</span>
+                    <div className="font-condensed font-black text-lg text-navy">{req.tradeCode || 'Sem código'}</div>
+                    <div className="text-[13.5px] text-navy">{req.region} · Parceiro {req.partnerCode}</div>
+                    <div className="flex items-center gap-3 text-[12.5px] text-muted mt-1 flex-wrap">
+                      <span className="flex items-center gap-1"><Calendar size={13} /> {formatDate(req.dateOfAction)}</span>
+                      <span className="badge">{req.days} dia(s)</span>
                     </div>
                   </div>
                   {status.isComplete ? (
-                    <button disabled className="bg-green-100 text-green-700 px-6 py-4 rounded-md font-bold cursor-not-allowed flex items-center justify-center gap-2 w-full md:w-auto">
-                      <CheckCircle size={18}/> CONCLUÍDO
-                    </button>
+                    <span className="badge-ok text-[12px] px-3 py-1.5"><CheckCircle size={14} /> Concluído</span>
                   ) : (
-                    <button
-                      onClick={() => setSelectedRequest(req)}
-                      className="bg-pink-50 text-pink-600 px-6 py-4 rounded-md font-bold hover:bg-pink-600 hover:text-white transition shadow-sm flex items-center justify-center gap-2 w-full md:w-auto"
-                    >
-                      <ListChecks size={18}/> PREENCHER ({status.current}/{status.total})
+                    <button onClick={() => setSelectedRequest(req)} className="btn-primary w-full md:w-auto">
+                      <ListChecks size={16} /> Preencher ({status.current}/{status.total})
                     </button>
                   )}
                 </div>

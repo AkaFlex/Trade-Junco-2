@@ -42,7 +42,7 @@ export const useToast = (): ToastContextValue => {
 // ------------------------------------------------------------------
 const ICONS: Record<ToastType, React.ReactNode> = {
   success: <CheckCircle size={20} className="text-green-junco shrink-0" />,
-  error:   <XCircle     size={20} className="text-red-400 shrink-0" />,
+  error:   <XCircle     size={20} className="text-[#F48FB1] shrink-0" />,
   warning: <AlertTriangle size={20} className="text-yellow-junco shrink-0" />,
   info:    <Info        size={20} className="text-blue-junco shrink-0" />,
 };
@@ -66,7 +66,9 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
     // Trigger enter animation
     requestAnimationFrame(() => setVisible(true));
 
-    const dur = toast.duration ?? 4000;
+    // Padrão Junco: avisos somem em ~3 s; erro fica até ser fechado.
+    if (toast.type === 'error' && toast.duration === undefined) return;
+    const dur = toast.duration ?? 3500;
     const timer = setTimeout(() => {
       setVisible(false);
       setTimeout(() => onRemove(toast.id), 350);
@@ -112,7 +114,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const addToast = useCallback((opts: Omit<Toast, 'id'>) => {
     counterRef.current += 1;
     const id = `toast-${counterRef.current}`;
-    setToasts(prev => [...prev, { ...opts, id }]);
+    setToasts(prev => [...prev, { ...opts, id }].slice(-3));
   }, []);
 
   const removeToast = useCallback((id: string) => {

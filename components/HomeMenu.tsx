@@ -1,132 +1,57 @@
 import React from 'react';
 import { UserProfile } from '../types';
-import { PlusCircle, ShoppingBag, DollarSign, ShieldAlert, ArrowRight, Star, PartyPopper } from 'lucide-react';
+import { PlusCircle, ShoppingBag, ClipboardList, ShieldCheck, ArrowRight, Star, PartyPopper } from 'lucide-react';
 import { TradeShowcase } from './TradeShowcase';
-
+import { Flow } from '../utils/route';
 
 interface Props {
   user: UserProfile | null;
-  onNavigate: (flow: 'home' | 'request' | 'sellout' | 'reimbursement' | 'admin' | 'login' | 'customization' | 'events') => void;
+  onNavigate: (flow: Flow) => void;
 }
 
-export const HomeMenu: React.FC<Props> = ({ user, onNavigate }) => {
-  return (
-    <div className="animate-in fade-in zoom-in-95 duration-500 w-full overflow-x-hidden pb-16">
-      <div className="p-4 md:p-8 max-w-5xl mx-auto w-full">
+// Cada área é identificada por uma cor da faixa da marca (borda esquerda), como os cards do Captação de Tendências.
+const OPTIONS: { flow: Flow; title: string; text: string; cta: string; icon: React.ReactNode; color: string }[] = [
+  { flow: 'request', title: 'Solicitar degustação', text: 'Crie uma nova solicitação de ação promocional para um parceiro.', cta: 'Iniciar', icon: <PlusCircle size={26} />, color: 'border-l-orange-junco' },
+  { flow: 'sellout', title: 'Sell-Out (relatório)', text: 'Preencha as vendas diárias usando o código único da ação.', cta: 'Preencher', icon: <ShoppingBag size={26} />, color: 'border-l-pink-junco' },
+  { flow: 'reimbursement', title: 'Minhas solicitações', text: 'Acompanhe suas solicitações e envie os comprovantes de reembolso.', cta: 'Acessar', icon: <ClipboardList size={26} />, color: 'border-l-blue-junco' },
+  { flow: 'customization', title: 'Solicitar personalização', text: 'Gôndolas, fachada e outros espaços, com fotos e detalhes para a gráfica.', cta: 'Personalizar', icon: <Star size={26} />, color: 'border-l-purple-junco' },
+  { flow: 'events', title: 'Solicitação de eventos', text: 'Eventos esportivos ou comerciais e ações sociais com participação da Junco.', cta: 'Solicitar', icon: <PartyPopper size={26} />, color: 'border-l-green-junco' },
+];
 
-        <div className="text-center mb-10">
-        <h1 className="text-3xl md:text-4xl font-extrabold text-gray-800 mb-2">Bem-vindo(a) ao Junco Trade</h1>
-        <p className="text-gray-500 text-lg">O que você deseja fazer hoje?</p>
+export const HomeMenu: React.FC<Props> = ({ user, onNavigate }) => (
+  <div className="w-full overflow-x-hidden pb-16">
+    <div className="page view-in">
+      <div className="mb-6">
+        <h1 className="page-title">Bem-vindo(a) ao Junco Trade</h1>
+        <p className="page-sub">O que você deseja fazer hoje?</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 mt-12">
-        {/* OPÇÃO 1 */}
-        <button
-          onClick={() => onNavigate('request')}
-          className="bg-white border-2 border-transparent hover:border-brand-red p-8 rounded-md shadow-sm hover:shadow-sm transition-all duration-300 group flex flex-col items-center text-center transform hover:-translate-y-2 relative overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 w-32 h-32 bg-brand-red/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150"></div>
-          <div className="bg-red-50 text-brand-red p-5 rounded-md mb-6 group-hover:bg-brand-red group-hover:text-white transition-colors relative z-10">
-            <PlusCircle size={40} />
-          </div>
-          <h2 className="text-xl font-bold text-gray-800 mb-3 relative z-10">Solicitar Degustação</h2>
-          <p className="text-gray-500 text-sm mb-6 relative z-10 flex-1">
-            Crie uma nova solicitação de ação promocional para um parceiro.
-          </p>
-          <span className="text-brand-red font-bold text-sm flex items-center gap-2 relative z-10">
-            INICIAR <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-          </span>
-        </button>
-
-        {/* OPÇÃO 2 */}
-        <button
-          onClick={() => onNavigate('sellout')}
-          className="bg-white border-2 border-transparent hover:border-pink-500 p-8 rounded-md shadow-sm hover:shadow-sm transition-all duration-300 group flex flex-col items-center text-center transform hover:-translate-y-2 relative overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150"></div>
-          <div className="bg-pink-50 text-pink-600 p-5 rounded-md mb-6 group-hover:bg-pink-500 group-hover:text-white transition-colors relative z-10">
-            <ShoppingBag size={40} />
-          </div>
-          <h2 className="text-xl font-bold text-gray-800 mb-3 relative z-10">Sell Out (Relatório)</h2>
-          <p className="text-gray-500 text-sm mb-6 relative z-10 flex-1">
-            Preencha as vendas diárias utilizando o Código Único da Ação.
-          </p>
-          <span className="text-pink-600 font-bold text-sm flex items-center gap-2 relative z-10">
-            PREENCHER <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-          </span>
-        </button>
-
-        {/* OPÇÃO 3 */}
-        <button
-          onClick={() => onNavigate('reimbursement')}
-          className="bg-white border-2 border-transparent hover:border-purple-600 p-8 rounded-md shadow-sm hover:shadow-sm transition-all duration-300 group flex flex-col items-center text-center transform hover:-translate-y-2 relative overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150"></div>
-          <div className="bg-purple-50 text-purple-600 p-5 rounded-md mb-6 group-hover:bg-purple-600 group-hover:text-white transition-colors relative z-10">
-            <DollarSign size={40} />
-          </div>
-          <h2 className="text-xl font-bold text-gray-800 mb-3 relative z-10">Minhas Solicitações</h2>
-          <p className="text-gray-500 text-sm mb-6 relative z-10 flex-1">
-            Acompanhe suas solicitações e envie comprovantes de reembolso.
-          </p>
-          <span className="text-purple-600 font-bold text-sm flex items-center gap-2 relative z-10">
-            ACESSAR PAINEL <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-          </span>
-        </button>
-
-        {/* OPÇÃO 4 */}
-        <button
-          onClick={() => onNavigate('customization')}
-          className="bg-white border-2 border-transparent hover:border-brand-purple p-8 rounded-md shadow-sm hover:shadow-sm transition-all duration-300 group flex flex-col items-center text-center transform hover:-translate-y-2 relative overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 w-32 h-32 bg-brand-purple/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150"></div>
-          <div className="bg-purple-50 text-brand-purple p-5 rounded-md mb-6 group-hover:bg-brand-purple group-hover:text-white transition-colors relative z-10">
-            <Star size={40} />
-          </div>
-          <h2 className="text-xl font-bold text-gray-800 mb-3 relative z-10">Solicitar Personalização</h2>
-          <p className="text-gray-500 text-sm mb-6 relative z-10 flex-1">
-            Novo espaço para gôndolas, fachada, etc com envio de foto e detalhes para a gráfica.
-          </p>
-          <span className="text-brand-purple font-bold text-sm flex items-center gap-2 relative z-10">
-            PERSONALIZAR <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-          </span>
-        </button>
-
-        {/* OPÇÃO 5 */}
-        <button
-          onClick={() => onNavigate('events')}
-          className="bg-white border-2 border-transparent hover:border-amber-500 p-8 rounded-md shadow-sm hover:shadow-sm transition-all duration-300 group flex flex-col items-center text-center transform hover:-translate-y-2 relative overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150"></div>
-          <div className="bg-amber-50 text-amber-600 p-5 rounded-md mb-6 group-hover:bg-amber-500 group-hover:text-white transition-colors relative z-10">
-            <PartyPopper size={40} />
-          </div>
-          <h2 className="text-xl font-bold text-gray-800 mb-3 relative z-10">Solicitação de Eventos</h2>
-          <p className="text-gray-500 text-sm mb-6 relative z-10 flex-1">
-            Eventos esportivos/comerciais ou ações sociais com participação da Junco.
-          </p>
-          <span className="text-amber-600 font-bold text-sm flex items-center gap-2 relative z-10">
-            SOLICITAR <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-          </span>
-        </button>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {OPTIONS.map(o => (
+          <button
+            key={o.flow}
+            onClick={() => onNavigate(o.flow)}
+            className={`card border-l-4 ${o.color} p-5 text-left flex flex-col gap-3 transition-colors duration-150 hover:border-navy group`}
+          >
+            <span className="text-navy">{o.icon}</span>
+            <span className="section-title">{o.title}</span>
+            <span className="text-[13.5px] text-muted flex-1">{o.text}</span>
+            <span className="font-condensed font-bold text-[12.5px] uppercase tracking-[.3px] text-navy flex items-center gap-1.5">
+              {o.cta} <ArrowRight size={14} className="transition-transform duration-150 group-hover:translate-x-0.5" />
+            </span>
+          </button>
+        ))}
       </div>
 
       {user?.role === 'admin' && (
-        <div className="flex justify-center border-t border-gray-200 pt-8 mt-4">
-          <button
-            onClick={() => onNavigate('admin')}
-            className="flex items-center gap-3 bg-gray-900 text-white px-8 py-4 rounded-md hover:bg-black transition-all shadow-lg transform hover:-translate-y-1 font-bold"
-          >
-            <ShieldAlert size={20} className="text-brand-purple" />
-            ACESSAR PAINEL GESTOR (ADMINISTRADOR)
+        <div className="mt-6 pt-6 border-t border-line flex justify-center">
+          <button onClick={() => onNavigate('admin')} className="btn-primary btn-lg">
+            <ShieldCheck size={18} /> Acessar painel do gestor
           </button>
         </div>
       )}
-      </div>
-
-      <div className="w-full relative mt-4">
-        <TradeShowcase user={user} />
-      </div>
     </div>
-  );
-};
+
+    <TradeShowcase user={user} />
+  </div>
+);

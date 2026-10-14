@@ -7,7 +7,8 @@ import { todayLocal } from '../utils/date';
 import { selloutLink } from '../utils/route';
 import { OptionSelect } from './shared/OptionSelect';
 import { DAILY_RATE, MAX_ACTION_DAYS, MIN_LEAD_DAYS, MIN_DOCERIA_VOLUME } from '../config';
-import { AlertTriangle, Ban, AlertCircle, User, Phone, Calendar, Clock, Store, FileSpreadsheet, CheckCircle, Copy, Link2 } from 'lucide-react';
+import { AlertTriangle, Ban, AlertCircle, User, Calendar, Clock, Store, FileSpreadsheet, CheckCircle, Link2, Loader2, PlusCircle } from 'lucide-react';
+import { WizardShell, FormSection, Field, GateQuestion, SuccessScreen } from './shared/Wizard';
 import { useToast } from './shared/Toast';
 
 interface Props {
@@ -149,296 +150,137 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
     }
   };
 
+  const set = (patch: Partial<typeof formData>) => setFormData({ ...formData, ...patch });
+
+  if (step === 3) {
+    return (
+      <WizardShell title="Solicitar degustação" icon={<PlusCircle size={20} />}>
+        <SuccessScreen
+          title="Ação solicitada!"
+          text="Sua solicitação foi enviada para aprovação do gestor. Guarde o código: ele é usado pela degustadora e no seu reembolso."
+          code={generatedCode}
+          onDone={() => onSuccess(generatedCode)}
+          extra={
+            <button
+              className="btn"
+              onClick={() => {
+                navigator.clipboard.writeText(selloutLink(generatedCode));
+                toast.success('Link copiado!', 'Envie para a degustadora: abre o Sell-Out já com o código (vale após a aprovação).');
+              }}
+            >
+              <Link2 size={15} /> Copiar link do Sell-Out
+            </button>
+          }
+        />
+      </WizardShell>
+    );
+  }
+
   return (
-    <div className="bg-white rounded-md shadow-sm max-w-3xl mx-auto overflow-hidden my-4 z-50">
-      <div className="bg-brand-red p-4 text-white flex justify-between items-center">
-        <h2 className="font-bold text-lg">Nova Solicitação de Ação</h2>
-        {step !== 3 && <button onClick={onCancel} className="text-white/80 hover:text-white font-bold">FECHAR</button>}
-      </div>
+    <WizardShell title="Solicitar degustação" icon={<PlusCircle size={20} />} onClose={onCancel}>
+      {step === 1 && (
+        <GateQuestion
+          question={<>Você possui a <strong>bandeja</strong> e o <strong>avental</strong> oficiais de degustação?</>}
+          onNo={() => setMaterialStatus('failed')}
+          onYes={() => { setMaterialStatus('success'); setStep(2); }}
+          noSelected={materialStatus === 'failed'}
+        >
+          {materialStatus === 'failed' && (
+            <div className="notice-warn text-left" role="alert">
+              <p className="font-semibold flex items-center gap-2 mb-1"><AlertTriangle size={16} /> Solicite o material antes</p>
+              <p>Peça a bandeja e o avental no sistema <strong>Vidya</strong>, vinculando <strong>CONCESSÃO PROMOÇÃO (TOP. 241)</strong> no pedido:</p>
+              <ul className="list-disc ml-5 mt-1 font-semibold">
+                <li>Cód. 199307 – Avental degustação</li>
+                <li>Cód. 291765 – Bandeja degustação</li>
+              </ul>
+            </div>
+          )}
+        </GateQuestion>
+      )}
 
-      <div className="p-6 md:p-8">
-        
-        {/* STEP 1: MATERIAL CHECK */}
-        {step === 1 && (
-          <div className="text-center space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-xl md:text-2xl font-bold text-gray-800">Verificação de Material</h2>
-            <p className="text-base md:text-lg text-gray-600">Você possui a <span className="font-bold text-brand-red">Bandeja</span> e o <span className="font-bold text-brand-red">Avental</span> oficiais?</p>
-            
-            {materialStatus === 'failed' && (
-              <div className="bg-red-50 border-l-4 border-red-500 p-4 md:p-6 text-left rounded shadow-sm my-6">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="text-red-600 shrink-0 mt-1" />
-                  <div>
-                    <h4 className="font-bold text-red-800 mb-2">Solicitação Necessária</h4>
-                    <p className="text-red-700 text-sm leading-relaxed mb-2">
-                      Para solicitar a bandeja e avental para a degustação é necessário solicitar no sistema <strong>Vidya</strong>.
-                    </p>
-                    <p className="text-red-700 text-sm leading-relaxed">
-                      Vincule <strong>CONCESSÃO PROMOÇÃO (TOP. 241)</strong> no pedido:
-                    </p>
-                    <ul className="list-disc ml-5 mt-2 text-red-800 font-bold text-sm">
-                      <li>Cod 199307 - AVENTAL DEGUSTACAO</li>
-                      <li>Cod 291765 - BANDEJA DEGUSTACAO</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            )}
+      {step === 2 && volumeStatus === 'failed' && (
+        <div className="text-center py-8 max-w-md mx-auto">
+          <Ban size={40} className="mx-auto text-pink-junco mb-3" />
+          <h2 className="section-title mb-2">Ação indisponível</h2>
+          <p className="text-[13.5px] text-muted mb-6">O volume de compras em Doceria do parceiro é insuficiente para ações de Trade Marketing neste momento.</p>
+          <button onClick={onCancel} className="btn">Voltar ao início</button>
+        </div>
+      )}
 
-            <div className="flex justify-center gap-4 pt-4">
-              <button 
-                onClick={() => setMaterialStatus('failed')}
-                className={`px-8 py-4 rounded-md font-bold transition text-lg w-32 ${materialStatus === 'failed' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-              >
-                NÃO
-              </button>
-              <button 
-                onClick={() => { setMaterialStatus('success'); setStep(2); }}
-                className="bg-green-600 text-white px-8 py-4 rounded-md font-bold hover:bg-green-700 shadow-lg text-lg w-32"
-              >
-                SIM
+      {step === 2 && volumeStatus !== 'failed' && (
+        <>
+          <FormSection title="Dados do solicitante" icon={<User size={16} />}>
+            <div className="grid md:grid-cols-3 gap-4">
+              <Field label="Nome completo *" htmlFor="rw-name">
+                <input id="rw-name" className="input" value={formData.rcaName} onChange={e => set({ rcaName: e.target.value })} placeholder="Seu nome" autoComplete="name" />
+              </Field>
+              <Field label="E-mail *" htmlFor="rw-email">
+                <input id="rw-email" type="email" className="input" value={formData.rcaEmail} onChange={e => set({ rcaEmail: e.target.value })} placeholder="seu.email@junco.com.br" autoComplete="email" />
+              </Field>
+              <Field label="WhatsApp *" htmlFor="rw-phone">
+                <input id="rw-phone" className="input" value={formData.rcaPhone} onChange={handlePhoneChange} placeholder="(XX) XXXXX-XXXX" maxLength={15} inputMode="tel" autoComplete="tel" />
+              </Field>
+            </div>
+          </FormSection>
+
+          <FormSection title="Validação de volume" icon={<AlertCircle size={16} />}>
+            <div className="notice-warn mb-3">
+              Este parceiro comprou <strong>R$ {MIN_DOCERIA_VOLUME.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong> ou mais em produtos da categoria <strong>DOCERIA</strong> no mês da ação?
+            </div>
+            <div className="flex gap-3">
+              <button onClick={triggerSilentBlock} disabled={loading} className="btn flex-1">Não</button>
+              <button onClick={() => setVolumeStatus('success')} className={volumeStatus === 'success' ? 'btn-primary flex-1' : 'btn flex-1'} aria-pressed={volumeStatus === 'success'}>
+                {volumeStatus === 'success' && <CheckCircle size={15} />} Sim
               </button>
             </div>
-          </div>
-        )}
+          </FormSection>
 
-        {/* STEP 2: DETAILS & VOLUME CHECK */}
-        {step === 2 && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
-            
-            {/* If blocked, show this and nothing else */}
-            {volumeStatus === 'failed' ? (
-               <div className="text-center py-10">
-                  <div className="inline-flex bg-red-100 p-6 rounded-full text-red-600 mb-4">
-                    <Ban size={48} />
+          {volumeStatus === 'success' && (
+            <FormSection title="Detalhes da ação" icon={<Calendar size={16} />} className="view-in">
+              <div className="grid md:grid-cols-2 gap-4">
+                <Field label="Código do parceiro *" htmlFor="rw-partner">
+                  <div className="relative">
+                    <Store size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+                    <input id="rw-partner" className="input pl-8" value={formData.partnerCode} onChange={e => set({ partnerCode: e.target.value })} placeholder="000000" />
                   </div>
-                  <h2 className="text-2xl font-bold text-gray-800 mb-2">Ação Indisponível</h2>
-                  <p className="text-gray-500 max-w-md mx-auto">
-                    O volume de compras em Doceria é insuficiente para realizar ações de Trade Marketing neste momento.
-                  </p>
-                  <button onClick={onCancel} className="mt-8 text-gray-400 underline hover:text-gray-600">Voltar ao Início</button>
-               </div>
-            ) : (
-              <>
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-100 mb-2">
-                    <h3 className="text-sm font-bold text-gray-500 uppercase mb-4 flex items-center gap-2">
-                        <User size={16}/> Dados do Solicitante
-                    </h3>
-                    <div className="grid md:grid-cols-3 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Nome Completo *</label>
-                            <input 
-                                className="w-full bg-white border border-gray-200 p-2 rounded focus:ring-2 focus:ring-brand-red outline-none"
-                                value={formData.rcaName}
-                                onChange={e => setFormData({...formData, rcaName: e.target.value})}
-                                placeholder="Seu nome"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-400 uppercase mb-1">E-mail *</label>
-                            <input 
-                                type="email"
-                                className="w-full bg-white border border-gray-200 p-2 rounded focus:ring-2 focus:ring-brand-red outline-none"
-                                value={formData.rcaEmail}
-                                onChange={e => setFormData({...formData, rcaEmail: e.target.value})}
-                                placeholder="seu.email@junco.com.br"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-400 uppercase mb-1">WhatsApp *</label>
-                            <div className="relative">
-                                <Phone size={16} className="absolute left-3 top-3 text-gray-400"/>
-                                <input 
-                                    className="w-full bg-white border border-gray-200 p-2 pl-10 rounded focus:ring-2 focus:ring-brand-red outline-none"
-                                    value={formData.rcaPhone}
-                                    onChange={handlePhoneChange}
-                                    placeholder="(XX) XXXXX-XXXX"
-                                    maxLength={15}
-                                    required
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* THE GATEKEEPER QUESTION - NOW COMES FIRST */}
-                <div className="bg-yellow-50 border border-yellow-200 p-4 md:p-6 rounded-md">
-                  <h3 className="font-bold text-yellow-900 text-lg mb-2 flex items-center gap-2">
-                    <AlertCircle size={20}/> Validação de Volume
-                  </h3>
-                  <p className="text-yellow-800 mb-6 text-sm">
-                    Este parceiro comprou <strong>R$ {MIN_DOCERIA_VOLUME.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong> ou mais em produtos da categoria <strong>DOCERIA</strong> no mês da ação?
-                  </p>
-                  
-                  <div className="flex gap-4">
-                    <button 
-                      onClick={triggerSilentBlock}
-                      className="flex-1 py-3 md:py-4 rounded-lg font-bold border bg-white text-gray-700 border-gray-300 hover:bg-gray-50 transition"
-                    >
-                      NÃO
-                    </button>
-                    <button 
-                      onClick={() => setVolumeStatus('success')}
-                      className={`flex-1 py-3 md:py-4 rounded-lg font-bold border transition shadow-md ${volumeStatus === 'success' ? 'bg-green-700 text-white border-green-700 ring-2 ring-green-400' : 'bg-green-600 text-white border-green-600 hover:bg-green-700'}`}
-                    >
-                      SIM
-                    </button>
+                </Field>
+                <Field label="Região *" htmlFor="rw-region">
+                  <OptionSelect id="rw-region" value={formData.region} options={REGIONS} onChange={region => set({ region })} />
+                </Field>
+                <Field label="Data do pedido de doces *" htmlFor="rw-order">
+                  <div className="relative">
+                    <FileSpreadsheet size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+                    <input id="rw-order" type="date" className="input pl-8" value={formData.orderDate} onChange={e => set({ orderDate: e.target.value })} />
                   </div>
-                </div>
-
-                {/* FIELDS THAT APPEAR ONLY AFTER VALIDATION */}
-                {volumeStatus === 'success' && (
-                  <div className="animate-in fade-in slide-in-from-bottom-4 pt-4 mt-6">
-                    
-                    {/* PARTNER AND REGION */}
-                    <div className="grid md:grid-cols-2 gap-4 mb-6">
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Código do Parceiro *</label>
-                        <div className="relative">
-                            <Store size={16} className="absolute left-3 top-3.5 text-gray-400"/>
-                            <input 
-                              className="w-full bg-gray-50 border border-gray-200 p-3 pl-10 rounded-lg focus:ring-2 focus:ring-brand-red outline-none text-lg font-bold text-gray-800"
-                              value={formData.partnerCode}
-                              onChange={e => setFormData({...formData, partnerCode: e.target.value})}
-                              placeholder="000000"
-                              required
-                            />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label htmlFor="rw-region" className="block text-xs font-bold text-gray-500 uppercase mb-1">Região *</label>
-                        <OptionSelect id="rw-region" value={formData.region} options={REGIONS}
-                          onChange={region => setFormData({ ...formData, region })} />
-                      </div>
-                    </div>
-
-                    <div className="border-t border-gray-100 pt-6">
-                        <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-                            <Calendar size={18} className="text-brand-red" /> Detalhes da Ação
-                        </h3>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Data do Pedido de Doces *</label>
-                                <div className="relative">
-                                  <FileSpreadsheet size={16} className="absolute left-3 top-3.5 text-gray-400"/>
-                                  <input 
-                                    type="date"
-                                    className="w-full bg-white border border-gray-200 p-3 pl-10 rounded-lg focus:ring-2 focus:ring-brand-red outline-none"
-                                    value={formData.orderDate}
-                                    onChange={e => setFormData({...formData, orderDate: e.target.value})}
-                                    required
-                                  />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Data Prevista da Ação *</label>
-                                <div className="relative">
-                                  <Clock size={16} className="absolute left-3 top-3.5 text-gray-400"/>
-                                  <input 
-                                    type="date"
-                                    className="w-full bg-white border border-gray-200 p-3 pl-10 rounded-lg focus:ring-2 focus:ring-brand-red outline-none"
-                                    value={formData.date}
-                                    onChange={e => setFormData({...formData, date: e.target.value})}
-                                    required
-                                  />
-                                </div>
-                                <p className="text-[10px] text-gray-400 mt-1">*Mínimo {MIN_LEAD_DAYS} dias de antecedência</p>
-                            </div>
-                        </div>
-
-                        <div className="mb-4">
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Dias de Ação *</label>
-                                <input 
-                                type="number"
-                                min="1" max={MAX_ACTION_DAYS} step="1"
-                                className="w-full bg-white border border-gray-200 p-3 rounded-lg focus:ring-2 focus:ring-brand-red outline-none"
-                                value={formData.days}
-                                onChange={e => setFormData({...formData, days: Math.min(MAX_ACTION_DAYS, Math.max(1, Math.trunc(Number(e.target.value) || 1)))})}
-                                required
-                                />
-                        </div>
-
-                        {formData.days > 1 && (
-                        <div className="mb-6">
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1 text-blue-600">Justificativa Obrigatória (Mais de 1 dia) *</label>
-                            <textarea 
-                                className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none" 
-                                rows={3}
-                                placeholder="Descreva o motivo da ação estendida..."
-                                value={formData.justification}
-                                onChange={e => setFormData({...formData, justification: e.target.value})}
-                                required={formData.days > 1}
-                            ></textarea>
-                        </div>
-                        )}
-
-                        <button 
-                        onClick={handleCreate}
-                        disabled={loading}
-                        className="w-full bg-brand-red text-white py-4 rounded-md font-bold text-lg shadow-sm hover:bg-red-800 transition transform hover:-translate-y-1 disabled:opacity-50 disabled:translate-y-0"
-                        >
-                        {loading ? "Processando..." : "FINALIZAR SOLICITAÇÃO"}
-                        </button>
-                    </div>
+                </Field>
+                <Field label="Data prevista da ação *" htmlFor="rw-date" hint={`Mínimo de ${MIN_LEAD_DAYS} dias de antecedência.`}>
+                  <div className="relative">
+                    <Clock size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+                    <input id="rw-date" type="date" className="input pl-8" value={formData.date} onChange={e => set({ date: e.target.value })} />
                   </div>
+                </Field>
+                <Field label="Dias de ação *" htmlFor="rw-days" hint={`De 1 a ${MAX_ACTION_DAYS} dias.`}>
+                  <input
+                    id="rw-days" type="number" min="1" max={MAX_ACTION_DAYS} step="1" className="input"
+                    value={formData.days}
+                    onChange={e => set({ days: Math.min(MAX_ACTION_DAYS, Math.max(1, Math.trunc(Number(e.target.value) || 1))) })}
+                  />
+                </Field>
+                {formData.days > 1 && (
+                  <Field label="Justificativa (mais de 1 dia) *" htmlFor="rw-just" className="md:col-span-2">
+                    <textarea id="rw-just" className="input" rows={3} placeholder="Descreva o motivo da ação estendida..." value={formData.justification} onChange={e => set({ justification: e.target.value })} />
+                  </Field>
                 )}
-              </>
-            )}
-          </div>
-        )}
-
-        {/* STEP 3: SUCCESS AND TRADE CODE */}
-        {step === 3 && (
-          <div className="text-center py-10 animate-in zoom-in-95 duration-500">
-            <div className="inline-flex bg-green-100 p-6 rounded-full text-green-600 mb-4">
-              <CheckCircle size={64} />
-            </div>
-            <h2 className="text-3xl font-extrabold text-gray-800 mb-2">Ação Solicitada!</h2>
-            <p className="text-gray-500 max-w-md mx-auto mb-8 text-sm md:text-base">
-              Sua solicitação foi enviada para aprovação do gestor. Guarde o Código Único abaixo, ele será usado pela degustadora e para o seu reembolso.
-            </p>
-            
-            <div className="bg-gray-50 border border-gray-200 p-6 rounded-md max-w-sm mx-auto mb-8">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Código da Ação</p>
-              <div className="flex items-center justify-center gap-3">
-                <span className="text-4xl font-black text-brand-red tracking-widest">{generatedCode}</span>
-                <button 
-                  onClick={() => {
-                    navigator.clipboard.writeText(generatedCode);
-                    toast.success("Código copiado!");
-                  }}
-                  className="text-gray-400 hover:text-brand-red p-2 bg-white rounded-lg shadow-sm"
-                  title="Copiar Código"
-                >
-                  <Copy size={20}/>
+              </div>
+              <div className="flex justify-end mt-5">
+                <button onClick={handleCreate} disabled={loading} className="btn-primary btn-lg w-full md:w-auto">
+                  {loading ? <><Loader2 size={15} className="animate-spin" /> Enviando...</> : 'Finalizar solicitação'}
                 </button>
               </div>
-            </div>
-
-            <div className="flex flex-col md:flex-row gap-3 justify-center">
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(selloutLink(generatedCode));
-                  toast.success("Link copiado!", "Envie para a degustadora: ele abre o Sell-Out já com o código (vale após a aprovação).");
-                }}
-                className="bg-white text-gray-800 border border-gray-300 px-6 py-4 rounded-md font-bold hover:bg-gray-50 transition w-full md:w-auto flex items-center justify-center gap-2"
-              >
-                <Link2 size={18}/> COPIAR LINK DO SELL-OUT
-              </button>
-              <button 
-                onClick={() => onSuccess(generatedCode)} 
-                className="bg-gray-800 text-white px-8 py-4 rounded-md font-bold hover:bg-black transition shadow-lg w-full md:w-auto"
-              >
-                VOLTAR AO INÍCIO
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+            </FormSection>
+          )}
+        </>
+      )}
+    </WizardShell>
   );
 };

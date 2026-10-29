@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Eye, Loader2, Check, X, Pencil, RotateCcw, User } from 'lucide-react';
 import { TradeRequest, RequestStatus } from '../../types';
 import { StatusBadge } from '../shared/StatusBadge';
 import { OptionButtons } from '../shared/OptionSelect';
+import { Pagination, usePagination } from '../shared/Pagination';
 import { Card, TypeBadge, STATUS_FILTERS, REQUEST_TYPE_LABELS, typeOf, isEventLike, isRequestOverdue, matchesSearch, formatBRL, formatDateBR } from './shared';
 
 export interface RequestsFilter {
@@ -32,6 +33,8 @@ export const RequestsTab: React.FC<Props> = ({ requests, filter, onFilterChange,
   const set = (patch: Partial<RequestsFilter>) => onFilterChange({ ...filter, ...patch });
 
   const searching = filter.search.trim().length > 0;
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [cursor, setCursor] = useState(0);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: requests.length };
@@ -47,6 +50,39 @@ export const RequestsTab: React.FC<Props> = ({ requests, filter, onFilterChange,
     matchesSearch(r, filter.search.trim())
   ), [requests, filter, searching]);
 
+  const pg = usePagination(list);
+  // Volta ao início quando o filtro ou a busca mudam.
+  useEffect(() => { pg.reset(); setCursor(0); }, [filter.status, filter.type, filter.search, filter.overdueOnly]);
+  useEffect(() => { setCursor(0); }, [pg.page]);
+
+  // Atalhos de teclado da fila (legenda visível abaixo da busca). Ignorados ao digitar ou com janela aberta.
+  const keyState = useRef({ rows: pg.slice, cursor, editingId });
+  keyState.current = { rows: pg.slice, cursor, editingId };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target as HTMLElement;
+      if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
+      if (document.querySelector('[role="dialog"]')) return;
+      const { rows, cursor: c, editingId: ed } = keyState.current;
+      if (ed) return;
+      const cur = rows[c];
+      const k = e.key.toLowerCase();
+      if (k === '/') { e.preventDefault(); searchRef.current?.focus(); }
+      else if (k === 'j') { e.preventDefault(); setCursor(Math.min(rows.length - 1, c + 1)); }
+      else if (k === 'k') { e.preventDefault(); setCursor(Math.max(0, c - 1)); }
+      else if (k === 'd' && cur) { e.preventDefault(); onOpen(cur); }
+      else if (k === 'a' && cur && cur.status === 'pending') { e.preventDefault(); onApprove(cur); }
+      else if (k === 'r' && cur && cur.status === 'pending') { e.preventDefault(); onReject(cur); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onOpen, onApprove, onReject]);
+
+  useEffect(() => {
+    document.querySelector(`[data-row-index="${cursor}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [cursor, pg.page]);
+
   const saveValue = async (r: TradeRequest) => {
     if (await onSaveValue(r, Number(editValue))) setEditingId(null);
   };
@@ -57,6 +93,7 @@ export const RequestsTab: React.FC<Props> = ({ requests, filter, onFilterChange,
         <div className="relative">
           <Search size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
           <input
+            ref={searchRef}
             type="search"
             aria-label="Buscar solicitações"
             placeholder="Buscar em todas as solicitações: código, RCA, parceiro, cidade, região, e-mail..."
@@ -88,6 +125,9 @@ export const RequestsTab: React.FC<Props> = ({ requests, filter, onFilterChange,
           )}
         </div>
         {searching && <p className="hint">Buscando em todas as situações.</p>}
+        <p className="hint hidden md:block" data-testid="atalhos">
+          Atalhos: <kbd className="kbd">J</kbd>/<kbd className="kbd">K</kbd> descer/subir · <kbd className="kbd">A</kbd> aprovar · <kbd className="kbd">R</kbd> recusar · <kbd className="kbd">D</kbd> detalhes · <kbd className="kbd">/</kbd> buscar
+        </p>
       </div>
 
       <div className="overflow-x-auto">
@@ -107,8 +147,8 @@ export const RequestsTab: React.FC<Props> = ({ requests, filter, onFilterChange,
             {list.length === 0 && (
               <tr><td colSpan={7} className="empty">Nenhuma solicitação encontrada.</td></tr>
             )}
-            {list.map(r => (
-              <tr key={r.id}>
+            {pg.slice.map((r, i) => (
+              <tr key={r.id} data-row-index={i} aria-current={i === cursor ? 'true' : undefined} className={i === cursor ? 'row-cursor' : ''}>
                 <td className="pl-5">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-paper border border-line text-navy flex items-center justify-center font-condensed font-bold text-xs shrink-0" aria-hidden="true">
@@ -185,11 +225,7 @@ export const RequestsTab: React.FC<Props> = ({ requests, filter, onFilterChange,
           </tbody>
         </table>
       </div>
-      {list.length > 0 && (
-        <div className="px-5 py-2.5 text-[12px] text-muted text-right border-t border-line">
-          {list.length} {list.length === 1 ? 'resultado' : 'resultados'}
-        </div>
-      )}
+      <Pagination page={pg.page} pages={pg.pages} from={pg.from} to={pg.to} total={pg.total} onPage={pg.setPage} noun={pg.total === 1 ? 'solicitação' : 'solicitações'} />
     </Card>
   );
 };

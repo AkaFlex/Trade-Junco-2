@@ -22,9 +22,12 @@
 
   .page { @apply max-w-[1400px] mx-auto px-4 md:px-8 py-6; }
   .page-narrow { @apply max-w-4xl mx-auto px-4 md:px-8 py-6; }
-  .page-title { @apply font-condensed font-black text-2xl uppercase tracking-[.3px] text-navy; }
+  .page-title { @apply font-condensed font-black text-2xl uppercase tracking-[.3px] text-navy; text-wrap: balance; }
   .page-sub { @apply text-[13px] text-muted mt-0.5; }
-  .section-title { @apply font-condensed font-bold text-[15px] uppercase tracking-[.3px] text-navy; }
+  .section-title { @apply font-condensed font-bold text-[15px] uppercase tracking-[.3px] text-navy; text-wrap: balance; }
+  .kbd { @apply inline-block font-condensed font-bold text-[11px] text-navy bg-white border border-line rounded px-1.5 leading-[18px] align-baseline; }
+  .table tbody tr.row-cursor td { @apply bg-[#FBF6E9]; }
+  .table tbody tr.row-cursor td:first-child { box-shadow: inset 3px 0 0 #EE7C1F; }
   .hint { @apply text-[12.5px] text-muted; }
 
   .card { @apply bg-white border border-line rounded-md; }

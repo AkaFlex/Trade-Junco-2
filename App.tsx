@@ -117,14 +117,14 @@ const App: React.FC = () => {
 
             <div className="flex items-center gap-2">
               {flow !== 'home' && (
-                <button onClick={() => setFlow('home')} className="btn">
+                <button onClick={() => setFlow('home')} className="btn" aria-label="Início">
                   <Home size={15} /> <span className="hidden sm:inline">Início</span>
                 </button>
               )}
               {user ? (
                 <>
                   <span className="text-[13px] text-muted hidden md:inline">{user.email}</span>
-                  <button onClick={handleLogout} className="btn"><LogOut size={15} /> <span className="hidden sm:inline">Sair</span></button>
+                  <button onClick={handleLogout} className="btn" aria-label="Sair"><LogOut size={15} /> <span className="hidden sm:inline">Sair</span></button>
                 </>
               ) : (
                 flow !== 'login' && (

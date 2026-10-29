@@ -184,7 +184,7 @@ export const PromoterPanel: React.FC<{ initialCode?: string }> = ({ initialCode 
             </div>
           </div>
           <div className="mt-4 w-full bg-paper border border-line rounded h-3 overflow-hidden" role="progressbar" aria-valuenow={reportStatus.current} aria-valuemin={0} aria-valuemax={reportStatus.total}>
-            <div className={`h-full transition-all duration-200 ${reportStatus.isComplete ? 'bg-green-junco' : 'bg-orange-junco'}`} style={{ width: `${pct}%` }} />
+            <div className={`h-full transition-[width] duration-200 ${reportStatus.isComplete ? 'bg-green-junco' : 'bg-orange-junco'}`} style={{ width: `${pct}%` }} />
           </div>
           <div className="mt-3 flex gap-4 text-[13px] text-muted flex-wrap">
             <span className="flex items-center gap-1.5"><Calendar size={14} /> Início: {formatDate(selectedRequest.dateOfAction)}</span>

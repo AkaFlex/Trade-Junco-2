@@ -7,7 +7,7 @@ import { generateTradeCode } from '../services/tradeCode';
 import { uploadFiles, acceptAttr } from '../services/uploadService';
 import { todayLocal } from '../utils/date';
 import { User, Store, MapPin, FileImage, ShieldAlert, Palette, X, Loader2, PlusCircle } from 'lucide-react';
-import { WizardShell, FormSection, Field, GateQuestion, SuccessScreen } from './shared/Wizard';
+import { WizardShell, FormSection, Field, GateQuestion, SuccessScreen, ReviewScreen } from './shared/Wizard';
 import { useToast } from './shared/Toast';
 
 interface Props {
@@ -37,6 +37,7 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [generatedCode, setGeneratedCode] = useState('');
+  const [reviewing, setReviewing] = useState(false);
   
   const [hasJuncoProducts, setHasJuncoProducts] = useState<'pending' | 'yes' | 'no'>('pending');
 
@@ -82,7 +83,7 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
     }
   };
 
-  const handleCreate = async () => {
+  const handleCreate = async (confirmed = false) => {
     // Validação
     if (!formData.rcaName.trim()) return toast.warning("Nome do RCA é obrigatório.");
     if (!formData.rcaEmail.trim()) return toast.warning("E-mail do RCA é obrigatório.");
@@ -95,7 +96,8 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
     if (!formData.storeLocation) return toast.warning("Selecione a localização do espaço dentro da loja.");
     if (!formData.footTraffic) return toast.warning("Selecione o fluxo de pessoas no espaço.");
     if (formData.spacePhotoUrls.length < MIN_CUSTOMIZATION_PHOTOS) return toast.warning(`Envie no mínimo ${MIN_CUSTOMIZATION_PHOTOS} fotos do espaço.`);
-    
+    if (!confirmed) { setReviewing(true); return; }
+
     setLoading(true);
     try {
       const tradeCode = generateTradeCode();
@@ -146,6 +148,33 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
           text="A personalização entra na pauta de análise do Trade. Guarde o código para acompanhar em Minhas solicitações."
           code={generatedCode}
           onDone={() => onSuccess(generatedCode)}
+        />
+      </WizardShell>
+    );
+  }
+
+  if (reviewing) {
+    return (
+      <WizardShell title="Solicitar personalização" icon={<Palette size={20} />} onClose={onCancel}>
+        <ReviewScreen
+          confirmLabel="Confirmar e enviar"
+          loading={loading}
+          onEdit={() => setReviewing(false)}
+          onConfirm={() => handleCreate(true)}
+          rows={[
+            { label: 'Nome', value: formData.rcaName },
+            { label: 'E-mail', value: formData.rcaEmail },
+            { label: 'WhatsApp', value: formData.rcaPhone },
+            { label: 'Código do parceiro', value: formData.partnerCode },
+            { label: 'Região', value: formData.region },
+            { label: 'Cidade', value: formData.city },
+            { label: 'Espaço a personalizar', value: formData.customizationSpace },
+            { label: 'Categoria de produtos', value: formData.brandCategory },
+            { label: 'Localização na loja', value: formData.storeLocation },
+            { label: 'Fluxo de pessoas', value: formData.footTraffic },
+            { label: 'Fornecedor indicado', value: formData.supplierIndication },
+            { label: 'Fotos do espaço', value: `${formData.spacePhotoUrls.length} anexada(s)` },
+          ]}
         />
       </WizardShell>
     );
@@ -250,8 +279,8 @@ export const CustomizationWizard: React.FC<Props> = ({ user, onCancel, onSuccess
           </FormSection>
 
           <div className="flex justify-end mt-6 pt-5 border-t border-line">
-            <button onClick={handleCreate} disabled={loading || uploading || !photosOk} className="btn-primary btn-lg w-full md:w-auto">
-              {loading ? <><Loader2 size={15} className="animate-spin" /> Enviando...</> : 'Enviar solicitação de personalização'}
+            <button onClick={() => handleCreate()} disabled={loading || uploading || !photosOk} className="btn-primary btn-lg w-full md:w-auto">
+              Revisar e enviar
             </button>
           </div>
         </>

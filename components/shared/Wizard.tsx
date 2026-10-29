@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, Copy, X } from 'lucide-react';
+import { CheckCircle, Copy, X, Loader2 } from 'lucide-react';
 import { useToast } from './Toast';
 
 // Moldura comum dos formulários de solicitação (padrão Junco: card branco, borda 1px, cabeçalho com título condensado).
@@ -57,10 +57,40 @@ export const SuccessScreen: React.FC<{ title: string; text: string; code: string
           <button onClick={() => { navigator.clipboard.writeText(code); toast.success('Código copiado!'); }} className="iconbtn" aria-label="Copiar código"><Copy size={16} /></button>
         </div>
       </div>
-      <div className="flex flex-col sm:flex-row gap-2 justify-center">
+      <div className="flex flex-col sm:flex-row gap-2 justify-center items-center">
         {extra}
         <button onClick={onDone} className="btn-primary">Voltar ao início</button>
       </div>
     </div>
   );
 };
+
+export interface ReviewRow { label: string; value: React.ReactNode; }
+
+/** "Confira suas respostas": resumo antes de enviar, com "Alterar" voltando ao formulário (os dados são mantidos). */
+export const ReviewScreen: React.FC<{
+  rows: ReviewRow[];
+  onEdit: () => void;
+  onConfirm: () => void;
+  loading?: boolean;
+  confirmLabel: string;
+}> = ({ rows, onEdit, onConfirm, loading, confirmLabel }) => (
+  <div className="max-w-2xl mx-auto view-in" data-testid="review">
+    <h2 className="page-title mb-1">Confira suas respostas</h2>
+    <p className="text-[13.5px] text-muted mb-4">Revise antes de enviar. Depois do envio, a solicitação segue para análise do gestor.</p>
+    <dl className="card-inner divide-y divide-line">
+      {rows.filter(r => r.value !== '' && r.value != null).map(r => (
+        <div key={r.label} className="px-4 py-2.5 grid sm:grid-cols-[200px_1fr] gap-x-4 gap-y-0.5">
+          <dt className="label m-0">{r.label}</dt>
+          <dd className="text-[14px] text-navy break-words m-0">{r.value}</dd>
+        </div>
+      ))}
+    </dl>
+    <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-5">
+      <button onClick={onEdit} disabled={loading} className="btn">Alterar respostas</button>
+      <button onClick={onConfirm} disabled={loading} className="btn-primary btn-lg">
+        {loading ? <><Loader2 size={15} className="animate-spin" /> Enviando...</> : confirmLabel}
+      </button>
+    </div>
+  </div>
+);

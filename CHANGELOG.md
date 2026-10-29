@@ -11,6 +11,14 @@ N1 Crítica · N2 Maior · N3 Menor · N4 Correção · N5 Documentação
 
 ---
 
+## [2.2.0] – 2026-10-29 · N3 Menor
+**Deploy:** ainda não publicado (commit local; push em `main` publica via GitHub Actions e pede confirmação do dono) · **Autor:** Mateus Silva (com Claude)
+**Resumo:** (1) **Testes automáticos Playwright** do fluxo criar → aprovar → Sell-Out → reembolso → pagar e auditoria **axe-core** (desktop e 375 px), com Firebase/Auth/Cloudinary simulados (`npm test`); (2) tela **"Confira suas respostas"** antes de enviar nas Degustação, Personalização e Eventos/Ação Social (botão "Alterar respostas" mantém os dados); (3) **paginação** (25 por página) na lista de Solicitações e nas listas do Financeiro; (4) **atalhos de teclado** na fila do gestor (J/K, A, R, D, /) com legenda visível; (5) **QR do link do Sell-Out** na tela de sucesso da degustação (qrcode-generator, MIT, carregado sob demanda); (6) `transition-all` (3) trocado por propriedades específicas; `text-wrap: balance` nos títulos; (7) acessibilidade: botões Início/Sair com nome acessível no celular.
+**Arquivos:** components/shared/Wizard.tsx, shared/Pagination.tsx (novo), shared/LinkQR.tsx (novo), shared/Toast.tsx, RequestWizard.tsx, CustomizationWizard.tsx, EventsWizard.tsx, admin/RequestsTab.tsx, admin/FinanceTab.tsx, ExecutionView.tsx, PromoterPanel.tsx, App.tsx, index.css, vite.config.ts (alias de teste só em `--mode test`), playwright.config.ts, tests/*, package.json, package-lock.json, README.md
+**Impacto em dados:** Não. Nenhuma regra de negócio, campo ou `firestore.rules` alterados.
+**Testes feitos:** `tsc --noEmit` e `npm run build` ok; `npm test` (4 testes) ok.
+**Pendências/Riscos:** Frappe Gantt e minigráficos não aplicados (ver nota). Painel com login real e Firestore real precisam ser conferidos pelo gestor após publicar.
+
 ## [2.1.1] – 2026-10-14 · N3 Menor
 **Deploy:** commit 0981da4 (2026-10-14) · **Autor:** Mateus Silva (com Claude)
 **Resumo:** migração visual completa para o design system Junco (PADROES-JUNCO.md §3, referência Captação de Tendências), em todas as telas: cabeçalho branco com a faixa arco-íris de 6px; títulos Barlow Semi Condensed em maiúsculas; botões padrão/primário (navy)/perigoso (rosa) com raio 4px; inputs 13,5px; cards com borda 1px e raio 6px, sem sombras pesadas nem gradientes; badges em pílula (raio 20px) com cores semânticas (ok, erro, info, destaque); tabela com cabeçalho #F6F5F1 e borda navy, hover #FBF6E9; abas com sublinhado laranja e contador amarelo; modais com overlay navy, animação curta, Esc e foco; toast de erro fica até ser fechado (máx. 3); KPIs com números que contam até o valor; vitrine sem autoplay (grade paginada); CSS de acessibilidade (foco visível, movimento reduzido, alvos de 44px no toque, seleção amarela). Classes do padrão centralizadas em `index.css` (`.btn`, `.card`, `.badge`, `.input`, `.table`, `.tab`...).

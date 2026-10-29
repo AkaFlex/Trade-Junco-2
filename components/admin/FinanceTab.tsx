@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { Wallet, Receipt, CheckCircle, Eye, Loader2, DollarSign, Paperclip, ChevronDown } from 'lucide-react';
 import { TradeRequest } from '../../types';
 import { StatusBadge } from '../shared/StatusBadge';
+import { Pagination, usePagination } from '../shared/Pagination';
 import { acceptAttr } from '../../services/uploadService';
 import { Card, TypeBadge, isEventLike, formatBRL, formatDateBR } from './shared';
 
@@ -31,6 +32,17 @@ const Row: React.FC<{ r: TradeRequest; children: React.ReactNode; onOpen: (r: Tr
     </div>
   </div>
 );
+
+function PagedRows<T>({ items, empty, render }: { items: T[]; empty: string; render: (item: T) => React.ReactNode }) {
+  const pg = usePagination(items);
+  return (
+    <>
+      {items.length === 0 && <p className="empty">{empty}</p>}
+      {pg.slice.map(render)}
+      {items.length > 0 && <div className="!border-t-0"><Pagination page={pg.page} pages={pg.pages} from={pg.from} to={pg.to} total={pg.total} onPage={pg.setPage} /></div>}
+    </>
+  );
+}
 
 const Section: React.FC<{ title: string; icon: React.ReactNode; count: number; hint: string; right?: React.ReactNode; children: React.ReactNode }> = ({ title, icon, count, hint, right, children }) => (
   <Card>
@@ -84,30 +96,28 @@ export const FinanceTab: React.FC<Props> = ({ requests, busyId, onOpen, onMarkPa
         hint="O RCA já enviou fotos, notas e PIX. Confira os dados em detalhes antes de pagar."
         right={<span className="kpi text-lg">{formatBRL(totalToPay)}</span>}
       >
-        {toPay.length === 0 && <p className="empty">Nada a pagar no momento.</p>}
-        {toPay.map(r => (
+        <PagedRows items={toPay} empty="Nada a pagar no momento." render={r => (
           <Row key={r.id} r={r} onOpen={onOpen}>
             <span className="kpi mr-1">{formatBRL(r.totalValue)}</span>
             <button onClick={() => onMarkPaid(r)} disabled={busyId === r.id} className="btn-primary">
               {busyId === r.id ? <Loader2 className="animate-spin" size={13} /> : <DollarSign size={13} />} Marcar como pago
             </button>
           </Row>
-        ))}
+        )} />
       </Section>
 
       <Section
         title="Aguardando recibo" icon={<Receipt size={16} />} count={awaitingReceipt.length}
         hint="Personalizações, eventos e ações sociais aprovados. Quando o recibo/NF chegar, anexe aqui para concluir."
       >
-        {awaitingReceipt.length === 0 && <p className="empty">Nenhum recibo pendente.</p>}
-        {awaitingReceipt.map(r => (
+        <PagedRows items={awaitingReceipt} empty="Nenhum recibo pendente." render={r => (
           <Row key={r.id} r={r} onOpen={onOpen}>
             <button onClick={() => pickReceipt(r)} disabled={busyId === r.id} className="btn-primary">
               {busyId === r.id ? <Loader2 className="animate-spin" size={13} /> : <Paperclip size={13} />} Anexar recibo e concluir
             </button>
             <button onClick={() => onCompleteWithoutReceipt(r)} disabled={busyId === r.id} className="btn">Concluir sem recibo</button>
           </Row>
-        ))}
+        )} />
       </Section>
 
       <Card>
@@ -117,12 +127,11 @@ export const FinanceTab: React.FC<Props> = ({ requests, busyId, onOpen, onMarkPa
         </button>
         {showPaid && (
           <div className="divide-y divide-line border-t border-line">
-            {paid.length === 0 && <p className="empty">Nenhum registro.</p>}
-            {paid.map(r => (
+            <PagedRows items={paid} empty="Nenhum registro." render={r => (
               <Row key={r.id} r={r} onOpen={onOpen}>
                 {!isEventLike(r) && <span className="kpi">{formatBRL(r.totalValue)}</span>}
               </Row>
-            ))}
+            )} />
           </div>
         )}
       </Card>

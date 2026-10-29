@@ -249,7 +249,7 @@ export const ExecutionView: React.FC<Props> = ({ request: initialRequest, onBack
         <div className="card p-4" aria-live="polite">
           <div className="flex justify-between label"><span>Enviando arquivos...</span><span>{uploadProgress.toFixed(0)}%</span></div>
           <div className="w-full bg-paper border border-line rounded h-2 overflow-hidden">
-            <div className="bg-navy h-full transition-all duration-200" style={{ width: `${uploadProgress}%` }} />
+            <div className="bg-navy h-full transition-[width] duration-200" style={{ width: `${uploadProgress}%` }} />
           </div>
         </div>
       )}

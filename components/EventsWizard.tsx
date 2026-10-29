@@ -4,7 +4,7 @@ import { createRequest } from '../services/tradeService';
 import { generateTradeCode } from '../services/tradeCode';
 import { uploadFile, validateFile, acceptAttr } from '../services/uploadService';
 import { OptionSelect, OptionButtons } from './shared/OptionSelect';
-import { WizardShell, FormSection, Field, SuccessScreen } from './shared/Wizard';
+import { WizardShell, FormSection, Field, SuccessScreen, ReviewScreen } from './shared/Wizard';
 import { Region } from '../types';
 import { PartyPopper, HeartHandshake, User, Building2, Calendar, Clock, MapPin, Users, FileText, Paperclip, Loader2, X, ArrowRight } from 'lucide-react';
 import { useToast } from './shared/Toast';
@@ -27,6 +27,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
   const [uploading, setUploading] = useState(false);
   const [attachmentName, setAttachmentName] = useState('');
   const [generatedCode, setGeneratedCode] = useState('');
+  const [reviewing, setReviewing] = useState(false);
 
   const [formData, setFormData] = useState({
     solicitante: '',
@@ -97,7 +98,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
       ? !formData.institutionName.trim() || !formData.expectedAudience.trim() || !formData.juncoParticipation.trim()
       : !formData.itemQuantity.trim() || !formData.desiredProduct.trim() || (formData.seasonalDate === 'sim' && !formData.seasonalDateDescription.trim()));
 
-  const handleCreate = async () => {
+  const handleCreate = async (confirmed = false) => {
     if (!subType) return;
     if (!formData.solicitante.trim()) return toast.warning("Solicitante é obrigatório.");
     if (!EMAIL_RE.test(formData.email.trim())) return toast.warning("Informe um e-mail válido para retorno.");
@@ -119,6 +120,8 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
       if (formData.seasonalDate === 'sim' && !formData.seasonalDateDescription.trim()) return toast.warning("Informe qual é a data sazonal.");
       if (!formData.actionOfficeUrl) return toast.warning("O anexo do Ofício da ação é obrigatório.");
     }
+
+    if (!confirmed) { setReviewing(true); return; }
 
     setLoading(true);
     try {
@@ -179,6 +182,42 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
           text="O Trade responde em até 3 dias. Guarde o código para acompanhar em Minhas solicitações."
           code={generatedCode}
           onDone={() => onSuccess(generatedCode)}
+        />
+      </WizardShell>
+    );
+  }
+
+  if (reviewing) {
+    const fmtD = (iso: string) => (iso ? iso.split('-').reverse().join('/') : '');
+    return (
+      <WizardShell title="Solicitação de eventos" icon={<PartyPopper size={20} />} onClose={onCancel}>
+        <ReviewScreen
+          confirmLabel="Confirmar e enviar"
+          loading={loading}
+          onEdit={() => setReviewing(false)}
+          onConfirm={() => handleCreate(true)}
+          rows={[
+            { label: 'Tipo', value: isEvento ? 'Evento' : 'Ação social' },
+            { label: 'Solicitante', value: formData.solicitante },
+            { label: 'E-mail', value: formData.email },
+            { label: 'Contato para tratativas', value: formData.contatoTratativas },
+            { label: 'Região', value: formData.region },
+            ...(isEvento ? [
+              { label: 'Instituição/empresa', value: formData.institutionName },
+              { label: 'Categoria', value: formData.eventCategory === 'esportivo' ? 'Esportivo' : 'Comercial' },
+              { label: 'Público esperado', value: formData.expectedAudience },
+              { label: 'Participação da Junco', value: formData.juncoParticipation },
+            ] : [
+              { label: 'Quantidade de itens', value: formData.itemQuantity },
+              { label: 'Produto desejado', value: formData.desiredProduct },
+              { label: 'Data sazonal', value: formData.seasonalDate === 'sim' ? formData.seasonalDateDescription : 'Não' },
+            ]),
+            { label: 'Dia', value: fmtD(formData.dataEvento) },
+            { label: 'Horário', value: formData.eventTime },
+            { label: 'Local', value: formData.eventLocation },
+            { label: 'Finalidade', value: formData.eventPurpose },
+            { label: isEvento ? 'Mídia kit' : 'Ofício da ação', value: attachmentName || 'Anexado' },
+          ]}
         />
       </WizardShell>
     );
@@ -325,8 +364,8 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
           </FormSection>
 
           <div className="flex justify-end mt-6 pt-5 border-t border-line">
-            <button onClick={handleCreate} disabled={loading || uploading || missingRequired} className="btn-primary btn-lg w-full md:w-auto">
-              {loading ? <><Loader2 size={15} className="animate-spin" /> Enviando...</> : 'Enviar solicitação'}
+            <button onClick={() => handleCreate()} disabled={loading || uploading || missingRequired} className="btn-primary btn-lg w-full md:w-auto">
+              Revisar e enviar
             </button>
           </div>
         </>

@@ -25,7 +25,10 @@ Verificação antes de publicar:
 ```bash
 npx tsc --noEmit
 npm run build
+npm test
 ```
+
+`npm test` roda o Playwright (tests/) contra o app em `--mode test`, com Firebase, login e Cloudinary **simulados** (nunca toca em produção). Usa o Chrome instalado (`PW_CHANNEL=msedge npm test` para o Edge). Cobre criar → aprovar → Sell-Out → reembolso → pagar e a auditoria axe-core (desktop e 375 px).
 
 ## Publicar
 

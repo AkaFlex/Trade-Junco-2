@@ -82,7 +82,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
       className={`
         flex items-start gap-3 bg-navy text-white rounded-[5px] shadow-modal border-l-4 ${BORDER[toast.type]}
         p-4 w-80 max-w-[calc(100vw-2rem)] pointer-events-auto
-        transition-all duration-350
+        transition-[opacity,transform] duration-350
         ${visible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}
       `}
     >

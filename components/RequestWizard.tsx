@@ -7,9 +7,10 @@ import { todayLocal } from '../utils/date';
 import { selloutLink } from '../utils/route';
 import { OptionSelect } from './shared/OptionSelect';
 import { DAILY_RATE, MAX_ACTION_DAYS, MIN_LEAD_DAYS, MIN_DOCERIA_VOLUME } from '../config';
-import { AlertTriangle, Ban, AlertCircle, User, Calendar, Clock, Store, FileSpreadsheet, CheckCircle, Link2, Loader2, PlusCircle } from 'lucide-react';
-import { WizardShell, FormSection, Field, GateQuestion, SuccessScreen } from './shared/Wizard';
+import { AlertTriangle, Ban, AlertCircle, User, Calendar, Clock, Store, FileSpreadsheet, CheckCircle, Link2, PlusCircle } from 'lucide-react';
+import { WizardShell, FormSection, Field, GateQuestion, SuccessScreen, ReviewScreen } from './shared/Wizard';
 import { useToast } from './shared/Toast';
+import { LinkQR } from './shared/LinkQR';
 
 interface Props {
   user: UserProfile | null;
@@ -22,6 +23,7 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [generatedCode, setGeneratedCode] = useState('');
+  const [reviewing, setReviewing] = useState(false);
   
   const [materialStatus, setMaterialStatus] = useState<'pending' | 'success' | 'failed'>('pending');
   const [volumeStatus, setVolumeStatus] = useState<'pending' | 'success' | 'failed'>('pending');
@@ -82,7 +84,7 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
     }
   };
 
-  const handleCreate = async () => {
+  const handleCreate = async (confirmed = false) => {
     // 1. STRICT VALIDATION
     if (!formData.rcaName.trim()) return toast.warning("Nome do RCA é obrigatório.");
     if (!formData.rcaEmail.trim()) return toast.warning("E-mail do RCA é obrigatório.");
@@ -117,6 +119,8 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
         toast.error(`A Data da Ação deve ser agendada com no mínimo ${MIN_LEAD_DAYS} dias de antecedência (a partir de hoje).`);
         return;
     }
+
+    if (!confirmed) { setReviewing(true); return; }
 
     setLoading(true);
     try {
@@ -160,7 +164,8 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
           text="Sua solicitação foi enviada para aprovação do gestor. Guarde o código: ele é usado pela degustadora e no seu reembolso."
           code={generatedCode}
           onDone={() => onSuccess(generatedCode)}
-          extra={
+          extra={<>
+            <LinkQR link={selloutLink(generatedCode)} />
             <button
               className="btn"
               onClick={() => {
@@ -170,7 +175,33 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
             >
               <Link2 size={15} /> Copiar link do Sell-Out
             </button>
-          }
+          </>}
+        />
+      </WizardShell>
+    );
+  }
+
+  const fmt = (iso: string) => (iso ? iso.split('-').reverse().join('/') : '');
+
+  if (reviewing) {
+    return (
+      <WizardShell title="Solicitar degustação" icon={<PlusCircle size={20} />} onClose={onCancel}>
+        <ReviewScreen
+          confirmLabel="Confirmar e enviar"
+          loading={loading}
+          onEdit={() => setReviewing(false)}
+          onConfirm={() => handleCreate(true)}
+          rows={[
+            { label: 'Nome', value: formData.rcaName },
+            { label: 'E-mail', value: formData.rcaEmail },
+            { label: 'WhatsApp', value: formData.rcaPhone },
+            { label: 'Código do parceiro', value: formData.partnerCode },
+            { label: 'Região', value: formData.region },
+            { label: 'Data do pedido', value: fmt(formData.orderDate) },
+            { label: 'Data da ação', value: fmt(formData.date) },
+            { label: 'Dias de ação', value: String(formData.days) },
+            { label: 'Justificativa', value: formData.justification },
+          ]}
         />
       </WizardShell>
     );
@@ -273,8 +304,8 @@ export const RequestWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) =>
                 )}
               </div>
               <div className="flex justify-end mt-5">
-                <button onClick={handleCreate} disabled={loading} className="btn-primary btn-lg w-full md:w-auto">
-                  {loading ? <><Loader2 size={15} className="animate-spin" /> Enviando...</> : 'Finalizar solicitação'}
+                <button onClick={() => handleCreate()} disabled={loading} className="btn-primary btn-lg w-full md:w-auto">
+                  Revisar e finalizar
                 </button>
               </div>
             </FormSection>

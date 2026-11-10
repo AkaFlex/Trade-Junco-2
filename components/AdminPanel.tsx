@@ -90,6 +90,17 @@ export const AdminPanel: React.FC = () => {
     try { await fn(); } finally { setBusyId(null); }
   };
 
+  // Evento/Ação Social: "Em análise" tira o selo "Atrasado" sem aprovar nem recusar.
+  const handleStartReview = (r: TradeRequest) => withBusy(r.id, async () => {
+    try {
+      await updateRequestStatus(r.id, 'under_review');
+      patch(r.id, { status: 'under_review' });
+      toast.success('Solicitação em análise', 'O solicitante passa a ver "Em análise". Decida depois: aprovar ou recusar.');
+    } catch (e: any) {
+      toast.error('Erro ao marcar em análise', e?.message);
+    }
+  });
+
   const handleApprove = (r: TradeRequest) => withBusy(r.id, async () => {
     try {
       const budget = await checkBudgetAvailability(r.region, r.dateOfAction?.slice(0, 7) || monthLocal(), Number(r.totalValue));
@@ -250,7 +261,7 @@ export const AdminPanel: React.FC = () => {
   });
 
   const counts = {
-    requests: requests.filter(r => r.status === 'pending').length,
+    requests: requests.filter(r => r.status === 'pending' || r.status === 'under_review').length,
     finance: requests.filter(r => r.status === 'completed').length,
     overdue: requests.filter(isRequestOverdue).length,
   };
@@ -307,6 +318,7 @@ export const AdminPanel: React.FC = () => {
                 busyId={busyId}
                 onOpen={setSelected}
                 onApprove={handleApprove}
+                onStartReview={handleStartReview}
                 onReject={r => { setRejecting(r); setRejectionReason(''); }}
                 onReopen={handleReopen}
                 onSaveValue={handleSaveValue}

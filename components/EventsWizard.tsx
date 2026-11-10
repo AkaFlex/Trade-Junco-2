@@ -39,6 +39,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
     dataEvento: '',
     eventTime: '',
     eventLocation: '',
+    eventCity: '',
     expectedAudience: '',
     eventPurpose: '',
     juncoParticipation: '',
@@ -92,6 +93,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
     !formData.dataEvento.trim() ||
     !formData.eventTime.trim() ||
     !formData.eventLocation.trim() ||
+    !formData.eventCity.trim() ||
     !formData.eventPurpose.trim() ||
     !attachmentUrl ||
     (isEvento
@@ -107,6 +109,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
     if (!formData.dataEvento.trim()) return toast.warning("Dia do Evento é obrigatório.");
     if (!formData.eventTime.trim()) return toast.warning("Horário do evento é obrigatório.");
     if (!formData.eventLocation.trim()) return toast.warning("Local do evento é obrigatório.");
+    if (!formData.eventCity.trim()) return toast.warning("Cidade do evento é obrigatória.");
     if (!formData.eventPurpose.trim()) return toast.warning("Finalidade do Evento é obrigatória.");
 
     if (isEvento) {
@@ -143,6 +146,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
         createdAt: Date.now(),
         eventTime: formData.eventTime,
         eventLocation: formData.eventLocation,
+        eventCity: formData.eventCity.trim(),
         eventPurpose: formData.eventPurpose,
       };
 
@@ -215,6 +219,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
             { label: 'Dia', value: fmtD(formData.dataEvento) },
             { label: 'Horário', value: formData.eventTime },
             { label: 'Local', value: formData.eventLocation },
+            { label: 'Cidade', value: formData.eventCity },
             { label: 'Finalidade', value: formData.eventPurpose },
             { label: isEvento ? 'Mídia kit' : 'Ofício da ação', value: attachmentName || 'Anexado' },
           ]}
@@ -271,10 +276,10 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
           </FormSection>
 
           <FormSection title={isEvento ? 'O evento' : 'A ação social'} icon={isEvento ? <PartyPopper size={16} /> : <HeartHandshake size={16} />}>
-            <div className="grid md:grid-cols-3 gap-4">
+            <div className="grid md:grid-cols-4 gap-4">
               {isEvento ? (
                 <>
-                  <Field label="Nome da instituição/empresa solicitante *" htmlFor="ev-inst" className="md:col-span-2">
+                  <Field label="Nome da instituição/empresa solicitante *" htmlFor="ev-inst" className="md:col-span-3">
                     <div className="relative">
                       <Building2 size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
                       <input id="ev-inst" className="input pl-8" value={formData.institutionName} onChange={e => set({ institutionName: e.target.value })} placeholder="Ex: Prefeitura de..., Empresa X" />
@@ -287,7 +292,7 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
                   </Field>
                 </>
               ) : (
-                <Field label="Data sazonal? *" className="md:col-span-3">
+                <Field label="Data sazonal? *" className="md:col-span-4">
                   <div className="flex flex-col md:flex-row gap-3 md:items-center">
                     <OptionButtons ariaLabel="Data sazonal" value={formData.seasonalDate}
                       options={[{ value: 'nao', label: 'Não' }, { value: 'sim', label: 'Sim' }]}
@@ -317,6 +322,12 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
                   <input id="ev-place" className="input pl-8" value={formData.eventLocation} onChange={e => set({ eventLocation: e.target.value })} placeholder="Endereço ou nome do local" />
                 </div>
               </Field>
+              <Field label="Cidade *" htmlFor="ev-city">
+                <div className="relative">
+                  <MapPin size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+                  <input id="ev-city" className="input pl-8" value={formData.eventCity} onChange={e => set({ eventCity: e.target.value })} placeholder="Ex: Goiânia - GO" />
+                </div>
+              </Field>
 
               {isEvento ? (
                 <Field label="Público esperado *" htmlFor="ev-audience">
@@ -330,17 +341,17 @@ export const EventsWizard: React.FC<Props> = ({ user, onCancel, onSuccess }) => 
                   <Field label="Quantidade de itens *" htmlFor="ev-qty">
                     <input id="ev-qty" type="number" min="1" className="input" value={formData.itemQuantity} onChange={e => set({ itemQuantity: e.target.value })} placeholder="Ex: 100" />
                   </Field>
-                  <Field label="Produto desejado *" htmlFor="ev-product" className="md:col-span-2">
+                  <Field label="Produto desejado *" htmlFor="ev-product" className="md:col-span-3">
                     <input id="ev-product" className="input" value={formData.desiredProduct} onChange={e => set({ desiredProduct: e.target.value })} placeholder="Ex: doces, balas, granolas..." />
                   </Field>
                 </>
               )}
 
-              <Field label="Finalidade do evento *" htmlFor="ev-purpose" className="md:col-span-3">
+              <Field label="Finalidade do evento *" htmlFor="ev-purpose" className="md:col-span-4">
                 <textarea id="ev-purpose" className="input" value={formData.eventPurpose} onChange={e => set({ eventPurpose: e.target.value })} placeholder="Qual o objetivo do evento/ação?" />
               </Field>
               {isEvento && (
-                <Field label="Como seria a participação da Junco no evento? *" htmlFor="ev-part" className="md:col-span-3">
+                <Field label="Como seria a participação da Junco no evento? *" htmlFor="ev-part" className="md:col-span-4">
                   <textarea id="ev-part" className="input" value={formData.juncoParticipation} onChange={e => set({ juncoParticipation: e.target.value })} placeholder="Descreva a participação esperada" />
                 </Field>
               )}

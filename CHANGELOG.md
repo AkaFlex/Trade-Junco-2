@@ -11,6 +11,14 @@ N1 Crítica · N2 Maior · N3 Menor · N4 Correção · N5 Documentação
 
 ---
 
+## [2.3.0] – 2026-11-10 · N2 Maior
+**Deploy:** pendente (aguarda confirmação) · **Autor:** Mateus Silva (com Claude)
+**Resumo:** (1) nova situação **"Em análise"** (`under_review`) para Evento e Ação Social: o gestor marca "Em análise" numa solicitação pendente; o selo "Atrasado" some, o RCA vê "Em análise" e o gestor depois aprova ou recusa (Aprovar e Recusar continuam disponíveis; atalhos A/R valem nos dois status); alerta "N em análise" na Visão Geral e filtro "Em análise" na lista; (2) **Cidade do evento** obrigatória em Eventos e Ação Social (campo `eventCity`), exibida nos detalhes, no RCA, na busca e no CSV (coluna "Cidade do Evento"); solicitações antigas mostram "—".
+**Arquivos:** types.ts, components/AdminPanel.tsx, components/EventsWizard.tsx, components/RCAPanel.tsx, components/admin/RequestsTab.tsx, components/admin/OverviewTab.tsx, components/admin/RequestDetailsModal.tsx, components/admin/shared.tsx, components/admin/csv.ts, components/shared/StatusBadge.tsx, tests/eventos.spec.ts (novo), CHANGELOG.md; documentação: `_Documentacao/projetos/portal-trade/processos.md` e `_Documentacao/PROCESSOS.md`
+**Impacto em dados:** Sim – novo valor de `status` `under_review` e novo campo `eventCity`, sem alterar dados existentes (solicitações antigas não têm `eventCity`; `under_review` só é gravado pelo gestor).
+**Testes feitos:** `tsc --noEmit` ok; `npm run build` ok; `npm test` (6 testes: 4 anteriores + 2 novos em `tests/eventos.spec.ts`: Cidade obrigatória e exibida em "Confira suas respostas"; "Em análise" tira o selo Atrasado e Aprovar continua disponível) ok; `validar_mermaid.js` ok.
+**Pendências/Riscos:** nenhuma regra do Firestore alterada (`firestore.rules` sem mudança; a gestora já grava por `isAdmin()`). Publicar as regras não é necessário para esta versão.
+
 ## [2.2.0] – 2026-10-29 · N3 Menor
 **Deploy:** ainda não publicado (commit local; push em `main` publica via GitHub Actions e pede confirmação do dono) · **Autor:** Mateus Silva (com Claude)
 **Resumo:** (1) **Testes automáticos Playwright** do fluxo criar → aprovar → Sell-Out → reembolso → pagar e auditoria **axe-core** (desktop e 375 px), com Firebase/Auth/Cloudinary simulados (`npm test`); (2) tela **"Confira suas respostas"** antes de enviar nas Degustação, Personalização e Eventos/Ação Social (botão "Alterar respostas" mantém os dados); (3) **paginação** (25 por página) na lista de Solicitações e nas listas do Financeiro; (4) **atalhos de teclado** na fila do gestor (J/K, A, R, D, /) com legenda visível; (5) **QR do link do Sell-Out** na tela de sucesso da degustação (qrcode-generator, MIT, carregado sob demanda); (6) `transition-all` (3) trocado por propriedades específicas; `text-wrap: balance` nos títulos; (7) acessibilidade: botões Início/Sair com nome acessível no celular.

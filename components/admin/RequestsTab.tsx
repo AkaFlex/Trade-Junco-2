@@ -20,6 +20,7 @@ interface Props {
   busyId: string | null;
   onOpen: (r: TradeRequest) => void;
   onApprove: (r: TradeRequest) => void;
+  onStartReview: (r: TradeRequest) => void;
   onReject: (r: TradeRequest) => void;
   onReopen: (r: TradeRequest) => void;
   onSaveValue: (r: TradeRequest, value: number) => Promise<boolean>;
@@ -27,7 +28,10 @@ interface Props {
 
 const TYPE_OPTIONS = [{ value: 'all', label: 'Todos os tipos' }, ...Object.entries(REQUEST_TYPE_LABELS).map(([value, label]) => ({ value, label }))];
 
-export const RequestsTab: React.FC<Props> = ({ requests, filter, onFilterChange, busyId, onOpen, onApprove, onReject, onReopen, onSaveValue }) => {
+// Situações em que a gestora ainda decide (aprovar/recusar).
+const isOpenForDecision = (r: TradeRequest) => r.status === 'pending' || r.status === 'under_review';
+
+export const RequestsTab: React.FC<Props> = ({ requests, filter, onFilterChange, busyId, onOpen, onApprove, onStartReview, onReject, onReopen, onSaveValue }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const set = (patch: Partial<RequestsFilter>) => onFilterChange({ ...filter, ...patch });
@@ -72,8 +76,8 @@ export const RequestsTab: React.FC<Props> = ({ requests, filter, onFilterChange,
       else if (k === 'j') { e.preventDefault(); setCursor(Math.min(rows.length - 1, c + 1)); }
       else if (k === 'k') { e.preventDefault(); setCursor(Math.max(0, c - 1)); }
       else if (k === 'd' && cur) { e.preventDefault(); onOpen(cur); }
-      else if (k === 'a' && cur && cur.status === 'pending') { e.preventDefault(); onApprove(cur); }
-      else if (k === 'r' && cur && cur.status === 'pending') { e.preventDefault(); onReject(cur); }
+      else if (k === 'a' && cur && isOpenForDecision(cur)) { e.preventDefault(); onApprove(cur); }
+      else if (k === 'r' && cur && isOpenForDecision(cur)) { e.preventDefault(); onReject(cur); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -169,7 +173,7 @@ export const RequestsTab: React.FC<Props> = ({ requests, filter, onFilterChange,
                 </td>
                 <td className="whitespace-nowrap">
                   <div className="font-semibold text-navy max-w-[160px] truncate">{r.partnerCode}</div>
-                  <div className="text-[12px] text-muted">{r.region}{r.city ? ` · ${r.city}` : ''}</div>
+                  <div className="text-[12px] text-muted">{r.region}{(r.city || r.eventCity) ? ` · ${r.city || r.eventCity}` : ''}</div>
                 </td>
                 <td className="whitespace-nowrap font-semibold text-navy">
                   {editingId === r.id ? (
@@ -203,7 +207,12 @@ export const RequestsTab: React.FC<Props> = ({ requests, filter, onFilterChange,
                 <td className="whitespace-nowrap">
                   <div className="flex justify-center items-center gap-1.5">
                     <button onClick={() => onOpen(r)} aria-label="Ver detalhes" title="Detalhes" className="iconbtn"><Eye size={15} /></button>
-                    {r.status === 'pending' && (
+                    {r.status === 'pending' && (r.requestType === 'evento' || r.requestType === 'acao_social') && (
+                      <button onClick={() => onStartReview(r)} disabled={busyId === r.id} className="btn px-3 py-1.5">
+                        <Search size={13} /> Em análise
+                      </button>
+                    )}
+                    {isOpenForDecision(r) && (
                       <>
                         <button onClick={() => onApprove(r)} disabled={busyId === r.id} className="btn-primary px-3 py-1.5">
                           {busyId === r.id ? <Loader2 className="animate-spin" size={13} /> : 'Aprovar'}

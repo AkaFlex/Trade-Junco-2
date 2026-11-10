@@ -4,6 +4,7 @@ import { todayLocal } from '../../utils/date';
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Aguardando Aprovação',
+  under_review: 'Em análise',
   approved: 'Em Execução',
   rejected: 'Recusado',
   completed: 'Aguardando Pagamento',
@@ -49,6 +50,7 @@ const COLUMNS: [string, (r: TradeRequest, p: PaymentInfo | null) => unknown][] =
   ['Instituição', r => r.institutionName],
   ['Horário', r => r.eventTime],
   ['Local do Evento', r => r.eventLocation],
+  ['Cidade do Evento', r => r.eventCity],
   ['Público Esperado', r => r.expectedAudience],
   ['Finalidade', r => r.eventPurpose],
   ['Participação Junco', r => r.juncoParticipation],

@@ -107,6 +107,7 @@ export const RCAPanel: React.FC<Props> = ({ user }) => {
                     <>
                       <span className="flex items-center gap-1.5"><Calendar size={14} /> {formatDateBR(req.dateOfAction)}</span>
                       <span>Local: {req.eventLocation || '—'}</span>
+                      {req.eventCity && <span>Cidade: {req.eventCity}</span>}
                       <span>Horário: {req.eventTime || '—'}</span>
                     </>
                   ) : req.requestType === 'personalizacao' ? (

@@ -45,7 +45,7 @@ export const OverviewTab: React.FC<Props> = ({ requests, monthlyBudgets, onShowR
   const month = monthLocal();
   const monthLabel = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
-  const { stats, pending, overdue, toSettle, productPerformance } = useMemo(() => {
+  const { stats, pending, review, overdue, toSettle, productPerformance } = useMemo(() => {
     const productStats: Record<string, number> = {};
     requests.forEach(req => req.salesReports?.forEach(rep => rep.products?.forEach(p => {
       if (p.qty > 0) productStats[p.name] = (productStats[p.name] || 0) + p.qty;
@@ -53,6 +53,7 @@ export const OverviewTab: React.FC<Props> = ({ requests, monthlyBudgets, onShowR
     return {
       stats: computeRegionStats(requests, monthlyBudgets, month),
       pending: requests.filter(r => r.status === 'pending').length,
+      review: requests.filter(r => r.status === 'under_review').length,
       overdue: requests.filter(isRequestOverdue).length,
       toSettle: requests.filter(r => r.status === 'completed').length,
       productPerformance: Object.entries(productStats)
@@ -68,7 +69,7 @@ export const OverviewTab: React.FC<Props> = ({ requests, monthlyBudgets, onShowR
 
   return (
     <div className="space-y-4">
-      {(overdue > 0 || pending > 0 || toSettle > 0) && (
+      {(overdue > 0 || pending > 0 || review > 0 || toSettle > 0) && (
         <div className="grid md:grid-cols-3 gap-3">
           {overdue > 0 && (
             <Alert kind="notice-error" onClick={() => onShowRequests('pending', true)}>
@@ -78,6 +79,11 @@ export const OverviewTab: React.FC<Props> = ({ requests, monthlyBudgets, onShowR
           {pending > 0 && (
             <Alert kind="notice-warn" onClick={() => onShowRequests('pending')}>
               <strong>{pending}</strong> aguardando aprovação
+            </Alert>
+          )}
+          {review > 0 && (
+            <Alert kind="notice-info" onClick={() => onShowRequests('under_review')}>
+              <strong>{review}</strong> em análise
             </Alert>
           )}
           {toSettle > 0 && (

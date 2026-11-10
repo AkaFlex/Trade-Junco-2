@@ -24,6 +24,7 @@ export const isRequestOverdue = (r: TradeRequest): boolean =>
 
 export const STATUS_FILTERS: { key: RequestStatus | 'all'; label: string }[] = [
   { key: 'pending', label: 'Pendentes' },
+  { key: 'under_review', label: 'Em análise' },
   { key: 'approved', label: 'Em execução' },
   { key: 'completed', label: 'A pagar / recibo' },
   { key: 'paid', label: 'Concluídas' },
@@ -72,7 +73,7 @@ export const matchesSearch = (r: TradeRequest, q: string): boolean => {
   if (!q) return true;
   const needle = q.toLowerCase();
   return [
-    r.tradeCode, r.rcaName, r.rcaEmail, r.rcaPhone, r.partnerCode, r.region, r.city,
+    r.tradeCode, r.rcaName, r.rcaEmail, r.rcaPhone, r.partnerCode, r.region, r.city, r.eventCity,
     r.institutionName, r.adminAssignedSupplier, r.eventLocation, REQUEST_TYPE_LABELS[typeOf(r)],
   ].some(v => v?.toString().toLowerCase().includes(needle));
 };

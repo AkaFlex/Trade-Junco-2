@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, PlayCircle, XCircle, FileText, CheckCircle, Ban, ArchiveX, Receipt, AlarmClock } from 'lucide-react';
+import { Clock, PlayCircle, XCircle, FileText, CheckCircle, Ban, ArchiveX, Receipt, AlarmClock, Search } from 'lucide-react';
 
 type Variant = 'admin' | 'rca';
 
@@ -20,6 +20,7 @@ export const StatusBadge: React.FC<Props> = ({ status, variant = 'admin', overdu
 
   const map: Record<string, [string, React.ReactNode, string]> = {
     pending:        ['badge-warn', <Clock size={12} />, 'Aguardando aprovação'],
+    under_review:   ['badge-info', <Search size={12} />, 'Em análise'],
     approved:       ['badge-info', variant === 'admin' ? <PlayCircle size={12} /> : <CheckCircle size={12} />, variant === 'admin' ? 'Em execução' : 'Aprovado'],
     rejected:       ['badge-error', <XCircle size={12} />, 'Recusado'],
     completed:      eventLike

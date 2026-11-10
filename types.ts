@@ -27,7 +27,8 @@ export const REGIONS = [
 
 export type Region = typeof REGIONS[number];
 
-export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'completed' | 'paid' | 'blocked_volume' | 'expired';
+// under_review: Evento/Ação Social em análise (tira o selo "Atrasado"; depois aprova ou recusa).
+export type RequestStatus = 'pending' | 'under_review' | 'approved' | 'rejected' | 'completed' | 'paid' | 'blocked_volume' | 'expired';
 
 export interface ProductCount {
   name: string;
@@ -118,6 +119,7 @@ export interface TradeRequest {
   eventCategory?: 'esportivo' | 'comercial'; // Eventos: Tipo
   eventTime?: string;               // ambos: Horário do evento
   eventLocation?: string;           // ambos: Local do evento
+  eventCity?: string;               // ambos: Cidade do evento (solicitações antigas não têm)
   expectedAudience?: string;        // Eventos: Público esperado
   eventPurpose?: string;            // ambos: Finalidade do Evento
   juncoParticipation?: string;      // Eventos: Como seria a participação da Junco

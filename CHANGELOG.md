@@ -12,7 +12,7 @@ N1 Crítica · N2 Maior · N3 Menor · N4 Correção · N5 Documentação
 ---
 
 ## [2.3.0] – 2026-11-10 · N2 Maior
-**Deploy:** pendente (aguarda confirmação) · **Autor:** Mateus Silva (com Claude)
+**Deploy:** commit 2a3e773 (2026-11-10) · **Autor:** Mateus Silva (com Claude)
 **Resumo:** (1) nova situação **"Em análise"** (`under_review`) para Evento e Ação Social: o gestor marca "Em análise" numa solicitação pendente; o selo "Atrasado" some, o RCA vê "Em análise" e o gestor depois aprova ou recusa (Aprovar e Recusar continuam disponíveis; atalhos A/R valem nos dois status); alerta "N em análise" na Visão Geral e filtro "Em análise" na lista; (2) **Cidade do evento** obrigatória em Eventos e Ação Social (campo `eventCity`), exibida nos detalhes, no RCA, na busca e no CSV (coluna "Cidade do Evento"); solicitações antigas mostram "—".
 **Arquivos:** types.ts, components/AdminPanel.tsx, components/EventsWizard.tsx, components/RCAPanel.tsx, components/admin/RequestsTab.tsx, components/admin/OverviewTab.tsx, components/admin/RequestDetailsModal.tsx, components/admin/shared.tsx, components/admin/csv.ts, components/shared/StatusBadge.tsx, tests/eventos.spec.ts (novo), CHANGELOG.md; documentação: `_Documentacao/projetos/portal-trade/processos.md` e `_Documentacao/PROCESSOS.md`
 **Impacto em dados:** Sim – novo valor de `status` `under_review` e novo campo `eventCity`, sem alterar dados existentes (solicitações antigas não têm `eventCity`; `under_review` só é gravado pelo gestor).
